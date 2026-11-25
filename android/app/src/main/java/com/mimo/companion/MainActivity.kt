@@ -1,8 +1,6 @@
 package com.mimo.companion
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,20 +23,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mimo.companion.data.model.ChatMessage
 import com.mimo.companion.ui.theme.MIMOTheme
-import java.util.UUID
-import java.util.concurrent.Executors
+import com.mimo.companion.viewmodel.MimoViewModel
 
 private val Background = Color(0xFF0D1117)
 private val SurfaceColor = Color(0xFF161B22)
 private val Accent = Color(0xFF7C9CFF)
 private val PrimaryText = Color(0xFFF0F3F8)
 private val SecondaryText = Color(0xFF929BAA)
-
-data class ChatMessage(
-    val text: String,
-    val isUser: Boolean
-)
 
 class MainActivity : ComponentActivity() {
 
@@ -55,114 +50,23 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MimoChatScreen() {
+fun MimoChatScreen(
+    mimoViewModel: MimoViewModel = viewModel()
+) {
 
-    var input by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var isConnected by remember { mutableStateOf(false) }
-
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessage(
-                "Hello! I'm MIMO, your personal AI companion. What would you like to explore today?",
-                false
-            )
-        )
-    }
-
-    val sessionId = remember {
-        UUID.randomUUID().toString()
-    }
+    val uiState by mimoViewModel.uiState.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
-    val mainHandler = remember {
-        Handler(Looper.getMainLooper())
-    }
-
-    val executor = remember {
-        Executors.newSingleThreadExecutor()
-    }
-
-    DisposableEffect(Unit) {
-        executor.execute {
-            val connected = try {
-                ApiService.checkConnection()
-            } catch (error: Exception) {
-                false
-            }
-
-            mainHandler.post {
-                isConnected = connected
-            }
-        }
-
-        onDispose {
-            executor.shutdownNow()
-        }
-    }
-
-    fun sendMessage() {
-
-        val message = input.trim()
-
-        if (message.isEmpty() || isLoading) return
-
-        messages.add(ChatMessage(message, true))
-        input = ""
-        isLoading = true
-
-        executor.execute {
-
-            try {
-
-                val response = ApiService.sendMessage(
-                    message,
-                    sessionId
-                )
-
-                mainHandler.post {
-                    messages.add(
-                        ChatMessage(response, false)
-                    )
-
-                    isLoading = false
-                    isConnected = true
-                }
-
-            } catch (error: Exception) {
-
-                mainHandler.post {
-                    messages.add(
-                        ChatMessage(
-                            "I couldn't connect to my backend. Please check whether the MIMO server is running.",
-                            false
-                        )
-                    )
-
-                    isLoading = false
-                    isConnected = false
-                }
-            }
-
-            mainHandler.post {
-                mainHandler.post {
-                    if (messages.isNotEmpty()) {
-                        messages.size
-                    }
-                }
-            }
-        }
-    }
 
     Scaffold(
         containerColor = Background,
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             MessageInput(
-                input = input,
-                onInputChange = { input = it },
-                onSend = { sendMessage() },
-                isLoading = isLoading
+                input = uiState.input,
+                onInputChange = mimoViewModel::updateInput,
+                onSend = mimoViewModel::sendMessage,
+                isLoading = uiState.isLoading
             )
         }
     ) { padding ->
@@ -173,7 +77,7 @@ fun MimoChatScreen() {
                 .padding(padding)
         ) {
 
-            MimoHeader(isConnected)
+            MimoHeader(uiState.isConnected)
 
             HorizontalDivider(
                 color = Color(0xFF252D39)
@@ -200,11 +104,11 @@ fun MimoChatScreen() {
                     )
                 }
 
-                items(messages) { message ->
+                items(uiState.messages) { message ->
                     MessageBubble(message)
                 }
 
-                if (isLoading) {
+                if (uiState.isLoading) {
                     item {
                         Text(
                             text = "MIMO is thinking...",
@@ -215,11 +119,15 @@ fun MimoChatScreen() {
                 }
             }
 
-            LaunchedEffect(messages.size, isLoading) {
-                if (messages.isNotEmpty()) {
-                    listState.animateScrollToItem(
-                        if (isLoading) messages.size + 1 else messages.size
-                    )
+            LaunchedEffect(uiState.messages.size, uiState.isLoading) {
+                val lastIndex = if (uiState.isLoading) {
+                    uiState.messages.size + 1
+                } else {
+                    uiState.messages.size
+                }
+
+                if (lastIndex > 0) {
+                    listState.animateScrollToItem(lastIndex)
                 }
             }
         }

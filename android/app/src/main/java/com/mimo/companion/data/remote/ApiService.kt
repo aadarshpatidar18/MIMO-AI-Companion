@@ -1,5 +1,7 @@
-package com.mimo.companion
+package com.mimo.companion.data.remote
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -7,13 +9,14 @@ import java.net.URL
 object ApiService {
 
     private const val BASE_URL = "http://192.168.0.151:8000"
-    fun sendMessage(
+
+    suspend fun sendMessage(
         message: String,
         sessionId: String
-    ): String {
+    ): String = withContext(Dispatchers.IO) {
 
-        val url = URL("$BASE_URL/chat")
-        val connection = url.openConnection() as HttpURLConnection
+        val connection = URL("$BASE_URL/chat")
+            .openConnection() as HttpURLConnection
 
         try {
             connection.requestMethod = "POST"
@@ -46,6 +49,7 @@ object ApiService {
                 connection.inputStream
             } else {
                 connection.errorStream
+                    ?: throw Exception("Server error: $statusCode")
             }
 
             val responseText = responseStream.bufferedReader().use {
@@ -67,18 +71,19 @@ object ApiService {
                 throw Exception("MIMO could not process your request.")
             }
 
-            return responseJson.getString("response")
+            responseJson.getString("response")
 
         } finally {
             connection.disconnect()
         }
     }
 
-    fun checkConnection(): Boolean {
+    suspend fun checkConnection(): Boolean = withContext(Dispatchers.IO) {
+
         val connection = URL("$BASE_URL/health")
             .openConnection() as HttpURLConnection
 
-        return try {
+        try {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
