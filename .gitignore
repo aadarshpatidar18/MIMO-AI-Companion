@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.db
+.idea/
+.vscode/
+build/
+.gradle/
+local.properties
+.DS_Store
