@@ -1,0 +1,17 @@
+# Optional capabilities. Install what your machine can use:
+#   pip install -r requirements-optional.txt
+#   playwright install chromium          # the browser operator
+#
+# Browser (Milestone 4)
+playwright>=1.44
+
+# Screen capture, OCR and computer control (Milestone 3, Windows)
+pillow>=10.0
+pytesseract>=0.3.10        # also install the Tesseract program itself
+mss>=9.0                   # screen capture on Linux/macOS; Windows uses pillow
+pyautogui>=0.9.54          # mouse and keyboard
+pygetwindow>=0.0.9         # list open windows on Windows
+
+# System facts and PDF reading
+psutil>=5.9
+pypdf>=4.0

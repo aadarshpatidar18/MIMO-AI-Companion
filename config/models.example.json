@@ -1,0 +1,28 @@
+{
+  "selection": "ollama",
+  "fallback_to_local": true,
+  "ollama": {
+    "base_url": "http://127.0.0.1:11434",
+    "default_model": "qwen2.5:1.5b",
+    "timeout_s": 120,
+    "keep_alive": "5m"
+  },
+  "gemini": {
+    "default_model": "gemini-3.1-flash-lite",
+    "timeout_s": 60
+  },
+  "routes": {
+    "chat":    {"targets": [{"provider": "gemini"}, {"provider": "ollama"}]},
+    "plan":    {"targets": [{"provider": "gemini"}, {"provider": "ollama"}]},
+    "intent":  {"targets": [{"provider": "ollama"}]},
+    "memory":  {"targets": [{"provider": "ollama"}], "local_only": true}
+  },
+  "limits": {
+    "gemini": {
+      "gemini-3.1-flash-lite": {"rpm": 10, "rpd": 200}
+    }
+  },
+  "retry": {
+    "gemini": {"max_attempts": 3, "base_delay": 1.0, "max_delay": 8.0, "max_total_wait": 15.0}
+  }
+}

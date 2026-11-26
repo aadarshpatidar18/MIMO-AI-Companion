@@ -1,8 +1,10 @@
+import os
 import sqlite3
 import re
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "mimo.db"
+# Default location is unchanged (backend/mimo.db); override with MIMO_DB_PATH.
+DB_PATH = Path(os.environ.get("MIMO_DB_PATH") or Path(__file__).resolve().parent / "mimo.db")
 
 CATEGORIES = {
     "interest",

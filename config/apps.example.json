@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to config/apps.json to teach MIMO your own applications. Keys are the alias you say; values are the argv that starts the app. No shell strings.",
+  "vscode": ["code.cmd"],
+  "android studio": ["C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe"],
+  "chrome": ["chrome.exe"],
+  "explorer": ["explorer.exe"],
+  "terminal": ["wt.exe"]
+}

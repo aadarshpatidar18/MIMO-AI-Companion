@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d14">
+<title>MIMO</title>
+<style>
+  :root{
+    --bg:#0b0d14; --bg-2:#11141f; --card:#151926; --card-2:#1b2030;
+    --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+    --text:#eef1f8; --muted:#98a0b8; --faint:#6b7389;
+    --accent:#7c6cf6; --accent-2:#41d1c3; --danger:#ff6b6b; --good:#3ddc97; --warn:#ffb454;
+    --bubble-me:linear-gradient(135deg,#6f5cf0,#4f7cf6);
+    --shadow:0 12px 32px rgba(0,0,0,.38);
+    --radius:20px;
+  }
+  html[data-theme="light"]{
+    --bg:#f5f6fb; --bg-2:#eceef7; --card:#ffffff; --card-2:#f3f5fb;
+    --line:rgba(16,20,40,.09); --line-2:rgba(16,20,40,.16);
+    --text:#12162a; --muted:#5a6280; --faint:#8a91a8;
+    --accent:#5b4bef; --accent-2:#0fa79a;
+    --bubble-me:linear-gradient(135deg,#6f5cf0,#4f7cf6);
+    --shadow:0 10px 28px rgba(20,26,60,.10);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Inter,system-ui,sans-serif;
+    overscroll-behavior:none;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(60vw 60vw at 12% -10%, rgba(124,108,246,.18), transparent 60%),
+      radial-gradient(50vw 50vw at 95% 0%, rgba(65,209,195,.12), transparent 55%);
+  }
+  button,input,textarea,select{font:inherit;color:inherit}
+  button{cursor:pointer;border:0;background:none}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:10px}
+  .hidden{display:none !important}
+
+  /* ---------- layout ---------- */
+  #shell{position:relative;z-index:1;display:grid;grid-template-columns:288px 1fr;height:100dvh}
+  aside{
+    display:flex;flex-direction:column;gap:14px;padding:18px 14px;
+    background:linear-gradient(180deg,var(--bg-2),var(--bg));
+    border-right:1px solid var(--line);min-height:0;
+  }
+  main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+  .brand{display:flex;align-items:center;gap:12px;padding:2px 4px 6px}
+  .brand .name{font-weight:700;letter-spacing:.2px}
+  .brand .tag{font-size:12px;color:var(--faint);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---------- orb / character ---------- */
+  .orb{
+    position:relative;width:46px;height:46px;border-radius:16px;flex:0 0 auto;
+    background:conic-gradient(from 140deg,#7c6cf6,#41d1c3,#7c6cf6);
+    box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 8px 20px rgba(124,108,246,.35);
+    animation:breathe 5s ease-in-out infinite;
+  }
+  .orb::after{
+    content:"";position:absolute;inset:3px;border-radius:13px;
+    background:radial-gradient(120% 120% at 30% 20%,#1a1f31,#0b0d14);
+  }
+  html[data-theme="light"] .orb::after{background:radial-gradient(120% 120% at 30% 20%,#ffffff,#e6e9f7)}
+  .orb .face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:7px;z-index:1}
+  .orb .eye{width:5px;height:9px;border-radius:6px;background:linear-gradient(180deg,#c9c6ff,#8ff3e8);animation:blink 6s infinite}
+  .orb.thinking{animation:breathe 1.6s ease-in-out infinite}
+  .orb.thinking::before{
+    content:"";position:absolute;inset:-6px;border-radius:20px;z-index:-1;
+    background:conic-gradient(from 0deg,rgba(124,108,246,.0),rgba(65,209,195,.65),rgba(124,108,246,.0));
+    animation:spin 1.4s linear infinite;filter:blur(4px)
+  }
+  .orb.big{width:104px;height:104px;border-radius:34px}
+  .orb.big::after{inset:6px;border-radius:30px}
+  .orb.big .eye{width:9px;height:17px}
+  @keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.02)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.15)}}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:10px 14px;border-radius:12px;background:var(--card);
+    border:1px solid var(--line);font-weight:600;font-size:14px;transition:.15s;
+  }
+  .btn:hover{border-color:var(--line-2);transform:translateY(-1px)}
+  .btn.primary{background:var(--bubble-me);border:0;color:#fff;box-shadow:0 8px 20px rgba(111,92,240,.32)}
+  .btn.ghost{background:transparent}
+  .btn.danger{color:var(--danger);border-color:rgba(255,107,107,.35)}
+  .btn.sm{padding:7px 11px;font-size:13px;border-radius:10px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+
+  /* ---------- sidebar ---------- */
+  .new-chat{width:100%;justify-content:flex-start;background:var(--card-2)}
+  .convlist{overflow:auto;display:flex;flex-direction:column;gap:4px;min-height:0;flex:1}
+  .conv{
+    display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;cursor:pointer;
+    border:1px solid transparent;
+  }
+  .conv:hover{background:var(--card)}
+  .conv.active{background:var(--card);border-color:var(--line-2)}
+  .conv .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv .p{font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .side-foot{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+  .device-chip{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:2px 4px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good)}
+  .dot.off{background:var(--faint);box-shadow:none}
+
+  /* ---------- chat ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:12px;padding:14px 18px;
+    border-bottom:1px solid var(--line);backdrop-filter:blur(12px);
+    background:color-mix(in srgb,var(--bg) 78%,transparent);position:sticky;top:0;z-index:5;
+  }
+  .topbar .title{font-weight:700}
+  .topbar .sub{font-size:12px;color:var(--faint)}
+  .topbar .spacer{flex:1}
+  .icon-btn{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;border:1px solid var(--line);background:var(--card)}
+  .icon-btn:hover{border-color:var(--line-2)}
+  .thread{flex:1;overflow:auto;padding:22px 18px 12px;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;gap:10px;max-width:min(760px,92%);animation:rise .22s ease-out}
+  .msg .bubble{padding:11px 14px;border-radius:16px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+  .msg.mimo .bubble{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse}
+  .msg.me .bubble{background:var(--bubble-me);color:#fff;border-bottom-right-radius:6px;box-shadow:var(--shadow)}
+  .msg .who{width:28px;height:28px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;font-size:11px;font-weight:700;color:#0b0d14;background:linear-gradient(135deg,#9d92ff,#7ef0e2)}
+  .msg .meta{font-size:11px;color:var(--faint);margin-top:5px}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .typing{display:inline-flex;gap:4px;align-items:center;padding:4px 2px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:bounce 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+
+  /* ---------- empty state ---------- */
+  .empty{margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:24px;max-width:460px}
+  .empty h1{margin:6px 0 0;font-size:24px;letter-spacing:.2px}
+  .empty p{margin:0;color:var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:6px}
+  .chip{padding:9px 13px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;color:var(--text)}
+  .chip:hover{border-color:var(--line-2);transform:translateY(-1px)}
+
+  /* ---------- composer ---------- */
+  .composer{padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent)}
+  .inputwrap{display:flex;align-items:flex-end;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:8px 8px 8px 14px;box-shadow:var(--shadow)}
+  .inputwrap:focus-within{border-color:var(--line-2)}
+  textarea#input{
+    flex:1;resize:none;border:0;outline:0;background:transparent;max-height:160px;min-height:24px;
+    padding:6px 0;line-height:1.5;
+  }
+  .send{width:40px;height:40px;border-radius:13px;background:var(--bubble-me);display:grid;place-items:center;color:#fff;box-shadow:0 8px 18px rgba(111,92,240,.35)}
+  .mic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);background:var(--card-2)}
+  .mic:hover{color:var(--text);border-color:var(--line-2)}
+  .mic.live{color:#fff;background:var(--danger);border-color:transparent;animation:pulse 1.2s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,.55)}50%{box-shadow:0 0 0 10px rgba(255,107,107,0)}}
+  .orb.speaking .eye{animation:talk .42s infinite alternate}
+  @keyframes talk{from{transform:scaleY(.55)}to{transform:scaleY(1.15)}}
+  .send[disabled]{opacity:.4;box-shadow:none}
+  .hint{font-size:11px;color:var(--faint);margin:8px 4px 0;display:flex;justify-content:space-between;gap:10px}
+
+  /* ---------- panels ---------- */
+  .panel{flex:1;overflow:auto;padding:20px;max-width:900px;width:100%;margin:0 auto}
+  .panel h2{margin:0 0 4px;font-size:19px}
+  .panel .lede{margin:0 0 18px;color:var(--muted);font-size:13.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+  .row + .row{margin-top:12px}
+  .tag{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--card-2);border:1px solid var(--line);color:var(--muted)}
+  .tag.good{color:var(--good);border-color:rgba(61,220,151,.3)}
+  .tag.warn{color:var(--warn);border-color:rgba(255,180,84,.3)}
+  .tag.bad{color:var(--danger);border-color:rgba(255,107,107,.3)}
+  .muted{color:var(--muted)} .faint{color:var(--faint);font-size:12px}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .item{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card-2)}
+  .item .body{min-width:0}
+  .item .body strong{font-weight:600}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .field label{font-size:12.5px;color:var(--muted);font-weight:600}
+  .field input[type=text],.field select,.field textarea{
+    background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;outline:0;width:100%
+  }
+  .field input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));outline:0}
+  .field input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+    background:var(--card);border:2px solid var(--accent);box-shadow:0 4px 10px rgba(0,0,0,.35);cursor:pointer}
+  .field input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--card);
+    border:2px solid var(--accent);cursor:pointer}
+  .field .help{font-size:11.5px;color:var(--faint)}
+  .switch{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+  .switch:last-child{border-bottom:0}
+  .toggle{width:44px;height:26px;border-radius:999px;background:var(--card-2);border:1px solid var(--line);position:relative;transition:.2s}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:.2s}
+  .toggle.on{background:rgba(124,108,246,.3);border-color:rgba(124,108,246,.5)}
+  .toggle.on::after{left:20px;background:var(--accent)}
+
+  /* ---------- pairing ---------- */
+  #pair{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:var(--bg)}
+  .pair-card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:26px;padding:26px;box-shadow:var(--shadow)}
+  .pair-card h1{margin:16px 0 6px;font-size:23px}
+  .pair-card p{margin:0 0 18px;color:var(--muted);font-size:13.5px}
+  .code{letter-spacing:.42em;font-size:22px;font-weight:700;text-align:center;text-transform:uppercase;padding:14px;border-radius:14px;background:var(--card-2);border:1px solid var(--line)}
+
+  /* ---------- mobile ---------- */
+  .nav{display:none}
+  .drawer-back{display:none}
+  @media (max-width:820px){
+    #shell{grid-template-columns:1fr}
+    aside{
+      position:fixed;inset:0 auto 0 0;width:min(86vw,320px);z-index:15;
+      transform:translateX(-102%);transition:transform .22s ease;box-shadow:var(--shadow);
+    }
+    aside.open{transform:none}
+    .drawer-back{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:14;display:none}
+    .drawer-back.show{display:block}
+    .nav{
+      display:flex;border-top:1px solid var(--line);background:var(--bg-2);
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));justify-content:space-around;
+    }
+    .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--faint);padding:6px 10px;border-radius:12px}
+    .nav button.active{color:var(--text);background:var(--card)}
+    .panel{padding:16px}
+    .thread{padding:16px 12px 8px}
+    .composer{padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+    .msg{max-width:96%}
+    #hintLeft{display:none}
+  }
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--card);border:1px solid var(--line-2);color:var(--text);padding:11px 16px;border-radius:14px;box-shadow:var(--shadow);z-index:50;transition:.25s;font-size:13.5px;max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- pairing / onboarding -->
+<section id="pair" class="hidden">
+  <div class="pair-card">
+    <div class="orb big" aria-hidden="true"><div class="face"><span class="eye"></span><span class="eye"></span></div></div>
+    <h1 id="pairTitle">MIMO</h1>
+    <p id="pairLede">Connect this device. On the PC that runs MIMO, run <code>python -m backend.main pair</code> and type the code here.</p>
+    <div class="field">
+      <label for="pairCode">Pairing code</label>
+      <input id="pairCode" class="code" autocomplete="one-time-code" inputmode="latin" maxlength="9" placeholder="XXXXXXXX">
+    </div>
+    <div class="field">
+      <label for="pairName">Name this device</label>
+      <input id="pairName" type="text" placeholder="Pixel">
+    </div>
+    <button class="btn primary" id="pairGo" style="width:100%">Connect</button>
+    <div class="faint" style="text-align:center;margin-top:14px">
+      <button id="pairHere" style="color:var(--accent);font-weight:600">This is the PC — show me a code</button>
+    </div>
+    <div class="faint" id="pairErr" style="text-align:center;margin-top:10px;color:var(--danger)"></div>
+  </div>
+</section>
+
+<div id="shell" class="hidden">
+  <div class="drawer-back" id="drawerBack"></div>
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="orb" id="orbSmall" aria-hidden="true"><div class="face"><span class="eye"></span><span class="eye"></span></div></div>
+      <div style="min-width:0">
+        <div class="name" id="brandName">MIMO</div>
+        <div class="tag" id="brandTag">your personal AI</div>
+      </div>
+    </div>
+    <button class="btn new-chat" id="newChat">＋ New conversation</button>
+    <div class="convlist" id="convList"></div>
+    <div class="side-foot">
+      <div class="device-chip"><span class="dot" id="devDot"></span><span id="devLabel">not paired</span></div>
+      <button class="btn ghost sm" id="openSettings">Settings</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- chat view -->
+    <section id="view-chat" style="display:flex;flex-direction:column;min-height:0;flex:1">
+      <header class="topbar">
+        <button class="icon-btn" id="openDrawer" aria-label="Conversations" style="display:none">☰</button>
+        <div style="min-width:0">
+          <div class="title" id="chatTitle">MIMO</div>
+          <div class="sub" id="chatSub">ready</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="speakBtn" aria-label="Speak replies" title="Speak replies aloud">🔈</button>
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
+        <button class="icon-btn" id="stopBtn" aria-label="Stop" title="Stop the running task" style="display:none;color:var(--danger)">■</button>
+      </header>
+
+      <div class="thread" id="thread"></div>
+
+      <div class="composer">
+        <div class="inputwrap">
+          <button class="mic" id="micBtn" aria-label="Speak to MIMO" title="Speak to MIMO">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <textarea id="input" rows="1" placeholder="Ask MIMO anything…" aria-label="Message"></textarea>
+          <button class="send" id="sendBtn" aria-label="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16-8-6 16-3-7-7-1z"/></svg>
+          </button>
+        </div>
+        <div class="hint"><span id="hintLeft">Enter to send · Shift+Enter for a new line</span><span id="hintRight"></span></div>
+      </div>
+    </section>
+
+    <!-- memory view -->
+    <section id="view-memory" class="panel hidden">
+      <h2>Memory</h2>
+      <p class="lede">What MIMO knows about you. Add, correct or delete anything here; it uses these as facts, never as guesses.</p>
+      <div class="card">
+        <div class="field" style="margin:0 0 10px">
+          <label for="memText">Something worth remembering</label>
+          <input id="memText" type="text" placeholder="I am building a robotics project">
+        </div>
+        <div class="row">
+          <select id="memCat" class="field" style="margin:0;padding:11px 13px;border-radius:12px;background:var(--card-2);border:1px solid var(--line)">
+            <option value="interest">interest</option><option value="skill">skill</option>
+            <option value="goal">goal</option><option value="preference">preference</option>
+            <option value="project">project</option><option value="education">education</option>
+            <option value="other">other</option>
+          </select>
+          <button class="btn primary" id="memAdd">Remember this</button>
+        </div>
+      </div>
+      <div class="list" id="memList"></div>
+    </section>
+
+    <!-- devices view -->
+    <section id="view-devices" class="panel hidden">
+      <h2>Devices &amp; permissions</h2>
+      <p class="lede">Every device that can talk to your MIMO. Revoking one takes effect on its very next request.</p>
+      <div class="card">
+        <div class="row">
+          <div><strong>Add a device</strong><div class="faint">Shows a code that works once, for 10 minutes.</div></div>
+          <button class="btn" id="newCode">Show a code</button>
+        </div>
+        <div id="codeBox" class="hidden" style="margin-top:12px">
+          <div class="code" id="codeVal">—</div>
+        </div>
+      </div>
+      <div class="list" id="devList"></div>
+    </section>
+
+    <!-- activity view -->
+    <section id="view-activity" class="panel hidden">
+      <h2>Agent activity</h2>
+      <p class="lede">Multi-step work MIMO is doing, with what it used and what it verified.</p>
+      <div class="card">
+        <div class="field" style="margin:0 0 10px">
+          <label for="taskGoal">Give MIMO a job</label>
+          <input id="taskGoal" type="text" placeholder="What time is it, and what is 21 times 2?">
+        </div>
+        <button class="btn primary" id="taskRun">Run it</button>
+      </div>
+      <div class="list" id="taskList"></div>
+    </section>
+
+    <!-- settings view -->
+    <section id="view-settings" class="panel hidden">
+      <h2>Settings</h2>
+      <p class="lede">MIMO's character, how it looks, and who is allowed in.</p>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:14px"><strong>Character</strong><span class="tag" id="personaTag">default</span></div>
+        <div class="field"><label for="pName">Name</label><input id="pName" type="text" maxlength="24"></div>
+        <div class="field"><label for="pTag">One-line description</label><input id="pTag" type="text" maxlength="120"></div>
+        <div class="field"><label for="pAddr">Call me</label><input id="pAddr" type="text" maxlength="24" placeholder="Aadarsh"><div class="help">Leave empty to avoid names.</div></div>
+        <div class="field"><label for="pWarm">Warmth <span class="faint" id="pWarmVal"></span></label><input id="pWarm" type="range" min="1" max="5" step="1"></div>
+        <div class="field"><label for="pHum">Humour <span class="faint" id="pHumVal"></span></label><input id="pHum" type="range" min="0" max="3" step="1"></div>
+        <div class="field"><label for="pVerb">How much it says</label>
+          <select id="pVerb"><option value="brief">brief</option><option value="balanced">balanced</option><option value="detailed">detailed</option></select>
+        </div>
+        <div class="row">
+          <button class="btn" id="pReset">Reset to default</button>
+          <button class="btn primary" id="pSave">Save character</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><strong>Voice</strong><span class="tag" id="voiceTag">off</span></div>
+        <div class="switch">
+          <span>Speak MIMO's replies aloud<div class="faint">Uses your device's voices; nothing leaves the machine.</div></span>
+          <button class="toggle" id="tSpeak" aria-label="Speak replies"></button>
+        </div>
+        <div class="switch">
+          <span>Listening language<div class="faint" id="voiceNote">Microphone input uses your browser's speech engine, which may send audio to the browser vendor.</div></span>
+          <select id="vLang" style="max-width:130px;padding:8px 10px;border-radius:10px;background:var(--card-2);border:1px solid var(--line)">
+            <option value="en-US">English (US)</option>
+            <option value="en-IN">English (India)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="hi-IN">हिन्दी</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><strong>Appearance</strong></div>
+        <div class="switch"><span>Dark theme</span><button class="toggle" id="tTheme" aria-label="Dark theme"></button></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px"><strong>Security</strong></div>
+        <div class="switch">
+          <span>Require a paired device on every request<div class="faint">Off = anyone on your network can call the API.</div></span>
+          <button class="toggle" id="tAuth" aria-label="Require authentication"></button>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <span class="faint" id="secNote"></span>
+          <button class="btn danger sm" id="unpair">Forget this device</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- bottom nav (mobile) -->
+    <nav class="nav" id="nav">
+      <button data-view="chat" class="active">Chat</button>
+      <button data-view="memory">Memory</button>
+      <button data-view="devices">Devices</button>
+      <button data-view="activity">Activity</button>
+      <button data-view="settings">Settings</button>
+    </nav>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const BASE = location.origin;
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
+  const S = {
+    token: localStorage.getItem("mimo.token") || "",
+    device: JSON.parse(localStorage.getItem("mimo.device") || "null"),
+    conv: localStorage.getItem("mimo.conv") || "",
+    msgs: [],
+    persona: { name: "MIMO" },
+    authRequired: false,
+    view: "chat",
+    theme: localStorage.getItem("mimo.theme") || "dark",
+    busy: false,
+    tasks: [],
+    tools: [],
+    speak: localStorage.getItem("mimo.speak") === "1",
+    lang: localStorage.getItem("mimo.lang") || (navigator.language || "en-US"),
+    listening: false,
+  };
+
+  // ---------------------------------------------------------------- helpers
+  function toast(text, ms = 2600) {
+    const el = $("toast");
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), ms);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function time(ts) {
+    if (!ts) return "";
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function api(path, opts = {}) {
+    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    if (S.token) headers.Authorization = "Bearer " + S.token;
+    const res = await fetch(BASE + path, Object.assign({}, opts, { headers }));
+    if (res.status === 401) {
+      S.token = "";
+      localStorage.removeItem("mimo.token");
+      showPairing("That device was signed out. Pair it again.");
+      throw new Error("unauthorised");
+    }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || ("Request failed (" + res.status + ")"));
+    return body;
+  }
+
+  // ---------------------------------------------------------------- theme
+  function applyTheme() {
+    document.documentElement.dataset.theme = S.theme;
+    $("tTheme") && $("tTheme").classList.toggle("on", S.theme === "dark");
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", S.theme === "dark" ? "#0b0d14" : "#f5f6fb");
+  }
+  function toggleTheme() {
+    S.theme = S.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("mimo.theme", S.theme);
+    applyTheme();
+  }
+
+  // ---------------------------------------------------------------- pairing
+  function showPairing(note) {
+    $("shell").classList.add("hidden");
+    $("pair").classList.remove("hidden");
+    $("pairName").value = isAndroid ? "Phone" : "This browser";
+    if (note) $("pairErr").textContent = note;
+  }
+
+  async function pair() {
+    const code = $("pairCode").value.trim().toUpperCase();
+    const name = $("pairName").value.trim() || (isAndroid ? "Phone" : "Browser");
+    if (code.length < 4) { $("pairErr").textContent = "Type the code shown on your PC."; return; }
+    $("pairGo").disabled = true;
+    try {
+      const res = await fetch(BASE + "/auth/pair", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name, kind: isAndroid ? "android" : "desktop" }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Pairing failed");
+      S.token = body.token; S.device = body.device;
+      localStorage.setItem("mimo.token", S.token);
+      localStorage.setItem("mimo.device", JSON.stringify(S.device));
+      $("pairErr").textContent = "";
+      await boot();
+    } catch (e) {
+      $("pairErr").textContent = e.message;
+    } finally {
+      $("pairGo").disabled = false;
+    }
+  }
+
+  async function showCodeHere() {
+    try {
+      const res = await fetch(BASE + "/auth/pair/code", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || "Only the PC that runs MIMO can show a code.");
+      $("pairErr").textContent = "";
+      $("pairCode").value = body.code;
+      $("pairCode").focus();
+      $("pairErr").style.color = "var(--good)";
+      $("pairErr").textContent = "Code filled in — press Connect.";
+    } catch (e) {
+      $("pairErr").style.color = "var(--danger)";
+      $("pairErr").textContent = "This is not the PC running MIMO. Run `python -m backend.main pair` there.";
+    }
+  }
+
+  // ---------------------------------------------------------------- conversations
+  async function loadConversations() {
+    if (!S.token) { renderConversations([]); return []; }
+    try {
+      const body = await api("/conversations?limit=50");
+      renderConversations(body.conversations || []);
+      return body.conversations || [];
+    } catch (e) { return []; /* toast already shown for auth; ignore network */ }
+  }
+
+  function renderConversations(list) {
+    const box = $("convList");
+    box.innerHTML = "";
+    if (!list.length) {
+      box.innerHTML = '<div class="faint" style="padding:10px 6px">No conversations yet. Say something.</div>';
+      return;
+    }
+    for (const c of list) {
+      const el = document.createElement("div");
+      el.className = "conv" + (c.id === S.conv ? " active" : "");
+      el.innerHTML = '<div class="t">' + esc(c.title || "New conversation") + "</div>" +
+                     '<div class="p">' + esc(c.last_message || "empty") + "</div>";
+      el.onclick = () => { openConversation(c.id); closeDrawer(); };
+      box.appendChild(el);
+    }
+  }
+
+  async function openConversation(id) {
+    S.conv = id;
+    localStorage.setItem("mimo.conv", id);
+    setView("chat");
+    if (!S.token) { renderThread(); return; }
+    try {
+      const body = await api("/conversations/" + id + "/messages?limit=200");
+      S.msgs = (body.messages || []).map((m) => ({ role: m.role, content: m.content, ts: m.created_at }));
+      renderThread();
+      await loadConversations();
+    } catch (e) { toast(e.message); }
+  }
+
+  async function newConversation() {
+    if (!S.token) { S.msgs = []; S.conv = ""; renderThread(); return; }
+    try {
+      const c = await api("/conversations", { method: "POST", body: "{}" });
+      S.conv = c.id;
+      localStorage.setItem("mimo.conv", c.id);
+      S.msgs = [];
+      renderThread();
+      await loadConversations();
+      setView("chat");
+      closeDrawer();
+      $("input").focus();
+    } catch (e) { toast(e.message); }
+  }
+
+  // ---------------------------------------------------------------- chat
+  function renderThread() {
+    const thread = $("thread");
+    thread.innerHTML = "";
+    $("chatTitle").textContent = S.persona.name || "MIMO";
+    $("chatSub").textContent = S.token
+      ? (S.device ? S.device.name + " · " + (S.device.kind || "device") : "paired")
+      : "not paired — history stays in this browser";
+
+    if (!S.msgs.length) {
+      const prompts = [
+        "What do you remember about me?",
+        "Remember that I am building a robotics project",
+        "What time is it?",
+        "Calculate 25 * 35",
+      ];
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.innerHTML =
+        '<div class="orb big"><div class="face"><span class="eye"></span><span class="eye"></span></div></div>' +
+        "<h1>" + esc(S.persona.greeting || (S.persona.name || "MIMO") + " here.") + "</h1>" +
+        "<p>" + esc(S.persona.tagline || "Your personal AI, on every device you own.") + "</p>" +
+        '<div class="chips">' + prompts.map((p) => '<button class="chip">' + esc(p) + "</button>").join("") + "</div>";
+      thread.appendChild(empty);
+      empty.querySelectorAll(".chip").forEach((b) => {
+        b.onclick = () => { $("input").value = b.textContent; send(); };
+      });
+      return;
+    }
+
+    for (const m of S.msgs) {
+      const el = document.createElement("div");
+      el.className = "msg " + (m.role === "user" ? "me" : "mimo");
+      const who = m.role === "user" ? ((S.persona.address_as || "You").slice(0, 1).toUpperCase())
+                                    : (S.persona.name || "MIMO").slice(0, 1).toUpperCase();
+      el.innerHTML =
+        '<div class="who">' + esc(who) + "</div>" +
+        '<div><div class="bubble">' + esc(m.content) + "</div>" +
+        (m.ts ? '<div class="meta">' + time(m.ts) + "</div>" : "") + "</div>";
+      thread.appendChild(el);
+    }
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function thinking(on) {
+    S.busy = on;
+    $("sendBtn").disabled = on;
+    $("orbSmall").classList.toggle("thinking", on);
+    $("chatSub").textContent = on ? "thinking…" : (S.device ? S.device.name : "ready");
+    const existing = document.getElementById("typingRow");
+    if (on && !existing) {
+      const row = document.createElement("div");
+      row.className = "msg mimo"; row.id = "typingRow";
+      row.innerHTML = '<div class="who">' + esc((S.persona.name || "M").slice(0, 1)) + "</div>" +
+                      '<div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>';
+      $("thread").appendChild(row);
+      $("thread").scrollTop = $("thread").scrollHeight;
+    } else if (!on && existing) {
+      existing.remove();
+    }
+  }
+
+  async function send() {
+    const input = $("input");
+    const text = input.value.trim();
+    if (!text || S.busy) return;
+    input.value = "";
+    input.style.height = "auto";
+    stopSpeaking();
+    S.msgs.push({ role: "user", content: text, ts: Date.now() / 1000 });
+    renderThread();
+    thinking(true);
+    try {
+      let body;
+      if (S.token) {
+        if (!S.conv) {
+          const c = await api("/conversations", { method: "POST", body: "{}" });
+          S.conv = c.id; localStorage.setItem("mimo.conv", c.id);
+        }
+        body = await api("/chat", {
+          method: "POST",
+          body: JSON.stringify({ message: text, conversation_id: S.conv }),
+        });
+      } else {
+        body = await api("/chat", { method: "POST", body: JSON.stringify({ message: text, session_id: "web" }) });
+      }
+      S.msgs.push({ role: "assistant", content: body.response, ts: Date.now() / 1000 });
+      renderThread();
+      speak(body.response);
+      loadConversations();
+    } catch (e) {
+      if (e.message !== "unauthorised") {
+        S.msgs.push({ role: "assistant", content: "I could not reach the model. " + e.message, ts: Date.now() / 1000 });
+        renderThread();
+        toast(e.message);
+      }
+    } finally {
+      thinking(false);
+      input.focus();
+    }
+  }
+
+  // ---------------------------------------------------------------- memory
+  async function loadMemory() {
+    if (!S.token) { $("memList").innerHTML = '<div class="faint">Pair this device to use shared memory.</div>'; return; }
+    try {
+      const body = await api("/memory");
+      const list = $("memList");
+      list.innerHTML = "";
+      if (!body.memories.length) { list.innerHTML = '<div class="faint">Nothing saved yet.</div>'; return; }
+      for (const m of body.memories) {
+        const el = document.createElement("div");
+        el.className = "item";
+        el.innerHTML = '<div class="body"><span class="tag">' + esc(m.category) + "</span> " +
+                       esc(m.content) + '<div class="faint">' + esc(m.created_at || "") + "</div></div>" +
+                       '<button class="btn sm danger">Forget</button>';
+        el.querySelector("button").onclick = async () => {
+          await api("/memory", { method: "DELETE", body: JSON.stringify({ keyword: m.content }) });
+          toast("Forgotten.");
+          loadMemory();
+        };
+        list.appendChild(el);
+      }
+    } catch (e) { toast(e.message); }
+  }
+
+  async function addMemory() {
+    const content = $("memText").value.trim();
+    if (!content) return;
+    try {
+      await api("/memory", { method: "POST", body: JSON.stringify({ content, category: $("memCat").value }) });
+      $("memText").value = "";
+      toast("Remembered.");
+      loadMemory();
+    } catch (e) { toast(e.message); }
+  }
+
+  // ---------------------------------------------------------------- devices
+  async function loadDevices() {
+    const list = $("devList");
+    if (!S.token) { list.innerHTML = '<div class="faint">Pair this device first.</div>'; return; }
+    try {
+      const body = await api("/devices");
+      list.innerHTML = "";
+      for (const d of body.devices) {
+        const isMe = S.device && d.id === S.device.id;
+        const el = document.createElement("div");
+        el.className = "item";
+        el.innerHTML = '<div class="body"><strong>' + esc(d.name) + "</strong> " +
+          '<span class="tag">' + esc(d.kind) + "</span>" +
+          (isMe ? ' <span class="tag good">this device</span>' : "") +
+          '<div class="faint">scopes: ' + esc((d.scopes || []).join(", ")) + "</div>" +
+          '<div class="faint">last seen: ' + (d.last_seen ? time(d.last_seen) : "never") + "</div></div>";
+        if (!isMe) {
+          const btn = document.createElement("button");
+          btn.className = "btn sm danger"; btn.textContent = "Revoke";
+          btn.onclick = async () => {
+            try { await api("/devices/" + d.id, { method: "DELETE" }); toast("Revoked."); loadDevices(); }
+            catch (e) { toast(e.message); }
+          };
+          el.appendChild(btn);
+        }
+        list.appendChild(el);
+      }
+    } catch (e) { toast(e.message); }
+  }
+
+  async function requestCode() {
+    try {
+      const body = await api("/auth/pair/code", { method: "POST" });
+      $("codeBox").classList.remove("hidden");
+      $("codeVal").textContent = body.code;
+    } catch (e) { toast("Only the PC running MIMO can show a code."); }
+  }
+
+  // ---------------------------------------------------------------- activity
+  async function loadTasks() {
+    if (!S.token) { $("taskList").innerHTML = '<div class="faint">Pair this device to run tasks.</div>'; return; }
+    try {
+      const body = await api("/agent/tasks?limit=20");
+      S.tasks = body.tasks || [];
+      const list = $("taskList");
+      list.innerHTML = "";
+      const running = S.tasks.find((t) => ["queued", "running", "awaiting_confirmation"].includes(t.status));
+      $("stopBtn").style.display = running && running.status !== "awaiting_confirmation" ? "grid" : "none";
+      if (!S.tasks.length) { list.innerHTML = '<div class="faint">No tasks yet.</div>'; return; }
+      for (const t of S.tasks) {
+        const el = document.createElement("div");
+        el.className = "item";
+        const kind = t.status === "succeeded" ? "good" : ["failed", "timed_out", "cancelled"].includes(t.status) ? "bad"
+                   : t.status === "awaiting_confirmation" ? "warn" : "";
+        el.innerHTML = '<div class="body"><strong>' + esc(t.goal) + "</strong> " +
+          '<span class="tag ' + kind + '">' + esc(t.status) + "</span>" +
+          (t.agent ? ' <span class="tag">' + esc(t.agent) + "</span>" : "") +
+          '<div class="faint">' + esc(t.id) + (t.result ? " · " + esc(String(t.result).slice(0, 160)) : "") + "</div></div>";
+        if (t.status === "awaiting_confirmation") {
+          const wrap = document.createElement("div");
+          wrap.style.display = "flex"; wrap.style.gap = "8px";
+          const yes = document.createElement("button");
+          yes.className = "btn sm primary"; yes.textContent = "Approve";
+          yes.onclick = () => confirmTask(t.id, true);
+          const no = document.createElement("button");
+          no.className = "btn sm danger"; no.textContent = "No";
+          no.onclick = () => confirmTask(t.id, false);
+          wrap.append(yes, no); el.appendChild(wrap);
+        } else if (["queued", "running"].includes(t.status)) {
+          const btn = document.createElement("button");
+          btn.className = "btn sm danger"; btn.textContent = "Stop";
+          btn.onclick = () => cancelTask(t.id);
+          el.appendChild(btn);
+        }
+        list.appendChild(el);
+      }
+    } catch (e) { toast(e.message); }
+  }
+
+  async function runTask() {
+    const goal = $("taskGoal").value.trim();
+    if (!goal) return;
+    try {
+      await api("/agent/tasks", { method: "POST", body: JSON.stringify({ goal }) });
+      $("taskGoal").value = "";
+      toast("MIMO is on it.");
+      loadTasks();
+      setTimeout(loadTasks, 1500);
+      setTimeout(loadTasks, 4000);
+    } catch (e) { toast(e.message); }
+  }
+
+  async function cancelTask(id) {
+    try { await api("/agent/tasks/" + id + "/cancel", { method: "POST" }); toast("Stopping."); loadTasks(); }
+    catch (e) { toast(e.message); }
+  }
+
+  async function confirmTask(id, approve) {
+    try { await api("/agent/tasks/" + id + "/confirm", { method: "POST", body: JSON.stringify({ approve }) }); loadTasks(); }
+    catch (e) { toast(e.message); }
+  }
+
+  // ---------------------------------------------------------------- voice
+  // Speech out: the browser's own voices. Speech in: the browser's speech engine, which
+  // may send audio to the vendor - the UI says so, and local Whisper is the planned path.
+  let speaking = false;
+  function pickVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const exact = voices.find((v) => v.lang === S.lang);
+    const sameLang = voices.find((v) => v.lang && v.lang.split("-")[0] === S.lang.split("-")[0]);
+    const female = voices.find((v) => /female|samantha|zira|aria|jenny|google uk english female/i.test(v.name));
+    return exact || sameLang || female || voices[0];
+  }
+
+  function speak(text) {
+    if (!S.speak || !("speechSynthesis" in window) || !text) return;
+    stopSpeaking();
+    const utter = new SpeechSynthesisUtterance(String(text).slice(0, 1200));
+    const voice = pickVoice();
+    if (voice) utter.voice = voice;
+    utter.lang = S.lang;
+    utter.rate = 1.02; utter.pitch = 1.0;
+    utter.onstart = () => { speaking = true; $("orbSmall").classList.add("speaking"); };
+    utter.onend = utter.onerror = () => { speaking = false; $("orbSmall").classList.remove("speaking"); };
+    speechSynthesis.speak(utter);
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    speaking = false;
+    $("orbSmall") && $("orbSmall").classList.remove("speaking");
+  }
+
+  function setSpeak(on) {
+    S.speak = on;
+    localStorage.setItem("mimo.speak", on ? "1" : "0");
+    $("tSpeak") && $("tSpeak").classList.toggle("on", on);
+    $("speakBtn").textContent = on ? "🔊" : "🔈";
+    $("speakBtn").style.color = on ? "var(--accent)" : "";
+    $("voiceTag") && ($("voiceTag").textContent = on ? "on" : "off");
+    if (!on) stopSpeaking();
+    else speak(S.persona.greeting || "Voice is on.");
+  }
+
+  function listening(on) {
+    S.listening = on;
+    $("micBtn").classList.toggle("live", on);
+    $("hintLeft").textContent = on ? "Listening… speak now" : "Enter to send · Shift+Enter for a new line";
+  }
+
+  function startListening() {
+    if (S.listening) { try { recognition && recognition.stop(); } catch (e) {} return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { toast("This browser cannot listen. Chrome or Edge can."); return; }
+    stopSpeaking();
+    const rec = new SR();
+    recognition = rec;
+    rec.lang = S.lang;
+    rec.interimResults = true;
+    rec.continuous = false;
+    let finalText = "";
+    rec.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const chunk = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += chunk; else interim += chunk;
+      }
+      $("input").value = (finalText || interim).trim();
+      $("input").style.height = "auto";
+      $("input").style.height = Math.min($("input").scrollHeight, 160) + "px";
+    };
+    rec.onerror = (e) => {
+      listening(false);
+      if (e.error === "not-allowed") toast("Microphone permission was denied.");
+      else if (e.error !== "aborted") toast("I could not hear that: " + e.error);
+    };
+    rec.onend = () => {
+      listening(false);
+      const text = (finalText || $("input").value).trim();
+      if (text) toast("Got it — press send when you are ready.");
+    };
+    try { rec.start(); listening(true); } catch (e) { listening(false); }
+  }
+  let recognition = null;
+
+  // ---------------------------------------------------------------- settings
+  function fillPersona() {
+    const p = S.persona;
+    $("pName").value = p.name || "MIMO";
+    $("pTag").value = p.tagline || "";
+    $("pAddr").value = p.address_as || "";
+    $("pWarm").value = p.warmth || 3;
+    $("pHum").value = p.humour || 1;
+    $("pVerb").value = p.verbosity || "balanced";
+    $("pWarmVal").textContent = "(" + $("pWarm").value + "/5)";
+    $("pHumVal").textContent = "(" + $("pHum").value + "/3)";
+    $("personaTag").textContent = (p.name === "MIMO" && p.warmth === 3) ? "default" : "custom";
+  }
+
+  async function savePersona(payload) {
+    try {
+      const body = await api("/persona", { method: "PUT", body: JSON.stringify(payload || {
+        name: $("pName").value.trim() || "MIMO",
+        tagline: $("pTag").value.trim(),
+        address_as: $("pAddr").value.trim(),
+        warmth: Number($("pWarm").value),
+        humour: Number($("pHum").value),
+        verbosity: $("pVerb").value,
+        signature: true,
+      }) });
+      S.persona = body.persona;
+      S.persona.greeting = body.greeting;
+      $("brandName").textContent = S.persona.name;
+      $("brandTag").textContent = S.persona.tagline || "your personal AI";
+      fillPersona();
+      renderThread();
+      toast("Character saved.");
+    } catch (e) { toast(e.message); }
+  }
+
+  async function loadPersona() {
+    try {
+      const body = await api("/persona");
+      S.persona = body.persona;
+      S.persona.greeting = body.greeting;
+      S.persona.traits = body.traits;
+      $("brandName").textContent = S.persona.name || "MIMO";
+      $("brandTag").textContent = S.persona.tagline || "your personal AI";
+      document.title = S.persona.name || "MIMO";
+      fillPersona();
+    } catch (e) { /* defaults are fine */ }
+  }
+
+  async function toggleAuth() {
+    try {
+      const on = !S.authRequired;
+      const body = await api("/security/settings", { method: "PUT", body: JSON.stringify({ require_auth: on }) });
+      S.authRequired = body.require_auth;
+      $("tAuth").classList.toggle("on", S.authRequired);
+      $("secNote").textContent = S.authRequired
+        ? "Only paired devices can call this MIMO."
+        : "Anyone on your network can call this MIMO.";
+      toast(S.authRequired ? "Authentication required." : "Authentication off.");
+    } catch (e) { toast("Only a PC device can change this."); }
+  }
+
+  // ---------------------------------------------------------------- views
+  function setView(view) {
+    S.view = view;
+    for (const v of ["chat", "memory", "devices", "activity", "settings"]) {
+      $("view-" + v).classList.toggle("hidden", v !== view);
+    }
+    document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+    if (view === "memory") loadMemory();
+    if (view === "devices") loadDevices();
+    if (view === "activity") loadTasks();
+    if (view === "settings") { fillPersona(); loadDevices(); }
+  }
+
+  function openDrawer() { $("sidebar").classList.add("open"); $("drawerBack").classList.add("show"); }
+  function closeDrawer() { $("sidebar").classList.remove("open"); $("drawerBack").classList.remove("show"); }
+
+  // ---------------------------------------------------------------- boot
+  async function boot() {
+    $("pair").classList.add("hidden");
+    $("shell").classList.remove("hidden");
+    await loadPersona();
+
+    if (S.token) {
+      try {
+        const me = await api("/auth/me");
+        S.device = { id: me.id, name: me.name, kind: me.kind, scopes: me.scopes };
+        localStorage.setItem("mimo.device", JSON.stringify(S.device));
+        $("devLabel").textContent = me.name + " · " + me.kind;
+      } catch (e) { if (e.message === "unauthorised") return; }
+      const list = await loadConversations();
+      const target = S.conv || (list[0] && list[0].id);
+      if (target) await openConversation(target); else renderThread();
+    } else {
+      $("devLabel").textContent = "not paired";
+      $("devDot").classList.add("off");
+      renderConversations([]);
+      renderThread();
+    }
+
+    try {
+      const st = await api("/auth/status");
+      S.authRequired = st.require_auth;
+      $("tAuth").classList.toggle("on", S.authRequired);
+      $("secNote").textContent = S.authRequired
+        ? "Only paired devices can call this MIMO."
+        : "Anyone on your network can call this MIMO.";
+      if (st.require_auth && !S.token) { showPairing("This MIMO needs a paired device."); return; }
+    } catch (e) { /* older backend */ }
+
+    if (window.matchMedia("(max-width:820px)").matches) {
+      $("openDrawer").style.display = "grid";
+    }
+  }
+
+  // ---------------------------------------------------------------- events
+  $("pairGo").onclick = pair;
+  $("pairHere").onclick = showCodeHere;
+  $("pairCode").addEventListener("keydown", (e) => { if (e.key === "Enter") pair(); });
+  $("newChat").onclick = newConversation;
+  $("sendBtn").onclick = send;
+  $("themeBtn").onclick = toggleTheme;
+  $("openDrawer").onclick = openDrawer;
+  $("drawerBack").onclick = closeDrawer;
+  $("openSettings").onclick = () => { setView("settings"); closeDrawer(); };
+  $("memAdd").onclick = addMemory;
+  $("memText").addEventListener("keydown", (e) => { if (e.key === "Enter") addMemory(); });
+  $("newCode").onclick = requestCode;
+  $("taskRun").onclick = runTask;
+  $("taskGoal").addEventListener("keydown", (e) => { if (e.key === "Enter") runTask(); });
+  $("pSave").onclick = () => savePersona();
+  $("pReset").onclick = async () => { try { await api("/persona/reset", { method: "POST" }); await loadPersona(); renderThread(); toast("Reset."); } catch (e) { toast(e.message); } };
+  $("pWarm").oninput = () => { $("pWarmVal").textContent = "(" + $("pWarm").value + "/5)"; };
+  $("pHum").oninput = () => { $("pHumVal").textContent = "(" + $("pHum").value + "/3)"; };
+  $("tTheme").onclick = toggleTheme;
+  $("tSpeak") && ($("tSpeak").onclick = () => setSpeak(!S.speak));
+  $("speakBtn").onclick = () => setSpeak(!S.speak);
+  $("micBtn").onclick = startListening;
+  $("vLang") && ($("vLang").onchange = () => {
+    S.lang = $("vLang").value; localStorage.setItem("mimo.lang", S.lang);
+  });
+  $("tAuth").onclick = toggleAuth;
+  $("stopBtn").onclick = async () => {
+    const running = S.tasks.find((t) => ["queued", "running"].includes(t.status));
+    if (running) { await cancelTask(running.id); setView("activity"); }
+  };
+  $("unpair").onclick = () => {
+    S.token = ""; localStorage.removeItem("mimo.token");
+    localStorage.removeItem("mimo.device"); localStorage.removeItem("mimo.conv");
+    location.reload();
+  };
+  document.querySelectorAll("#nav button").forEach((b) => { b.onclick = () => setView(b.dataset.view); });
+  $("input").addEventListener("input", (e) => {
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+  });
+  $("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  setInterval(() => { if (S.view === "activity" && S.token) loadTasks(); }, 5000);
+
+  applyTheme();
+  if ($("vLang")) $("vLang").value = S.lang;
+  setSpeak(S.speak);
+  (async () => {
+    try {
+      const st = await api("/auth/status");
+      S.authRequired = st.require_auth;
+      if (!S.token && st.require_auth) { showPairing("This MIMO needs a paired device."); return; }
+      await boot();
+    } catch (e) {
+      await boot();
+    }
+  })();
+})();
+</script>
+</body>
+</html>

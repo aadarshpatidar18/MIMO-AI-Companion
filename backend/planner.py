@@ -1,5 +1,6 @@
 import json
-from llm import call_ollama
+
+from .llm import call_llm
 
 PLANNER_PROMPT = """
 You are MIMO's task planner.
@@ -44,6 +45,11 @@ def create_plan(command):
         }
     ]
 
-    result = call_ollama(messages, json_mode=True)
+    result = call_llm(messages, json_mode=True, task="plan")
 
-    return json.loads(result)
+    try:
+        plan = json.loads(result)
+    except ValueError:
+        return {"steps": []}
+
+    return plan if isinstance(plan, dict) else {"steps": []}

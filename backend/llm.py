@@ -1,55 +1,35 @@
-import requests
 import json
+import os
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "qwen2.5:1.5b"
+from .core.llm import LLMRequest, Message, get_router
+from .core.persona import current as current_persona
+from .core.persona import system_prompt as persona_system_prompt
 
-SYSTEM_PROMPT = """
-You are MIMO, a personal AI companion.
-
-You are being developed as a personal AI project.
-
-You can:
-- Answer questions.
-- Explain concepts.
-- Have conversations.
-- Use information explicitly stored in user memory.
-
-Never invent personal information.
-Never claim an action was completed unless the application confirms it.
-
-When answering questions about the user:
-- Use the supplied memory as evidence.
-- Do not invent interests, skills, goals or experiences.
-- Clearly distinguish known information from reasonable suggestions.
-- If the memory does not contain the answer, admit that you do not know.
-
-Be concise, accurate and friendly.
-"""
-
-
-def call_ollama(messages, json_mode=False):
-    payload = {
-        "model": MODEL,
-        "messages": messages,
-        "stream": False,
-        "options": {
-            "temperature": 0
-        }
-    }
-
-    if json_mode:
-        payload["format"] = "json"
-
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload,
-        timeout=120
+def memory_to_cloud_allowed():
+    """Personal memories are only sent to a cloud model if the user opts in."""
+    return os.environ.get("MIMO_ALLOW_MEMORY_TO_CLOUD", "").strip().lower() in (
+        "1", "true", "yes", "on"
     )
 
-    response.raise_for_status()
 
-    return response.json()["message"]["content"]
+def call_llm(messages, json_mode=False, task="chat", allow_cloud=True):
+    """Send chat messages through the model router (Ollama / Gemini).
+
+    task selects the per-task route (intent, plan, chat, ...). allow_cloud=False
+    guarantees the prompt never leaves this machine.
+    """
+    request = LLMRequest(
+        messages=[Message(m["role"], m["content"]) for m in messages],
+        task=task,
+        temperature=0,
+        json_mode=json_mode,
+        allow_cloud=allow_cloud,
+    )
+    return get_router().generate(request).text
+
+
+# Backwards-compatible name used by older code.
+call_ollama = call_llm
 
 
 def classify_intent(prompt):
@@ -163,12 +143,19 @@ Return only valid JSON.
 User request: {prompt}
 """
 
-    result = call_ollama(
+    result = call_llm(
         [{"role": "user", "content": classification_prompt}],
-        json_mode=True
+        json_mode=True,
+        task="intent"
     )
 
-    classification = json.loads(result)
+    try:
+        classification = json.loads(result)
+    except ValueError:
+        return {"intent": "unknown", "parameters": {}}
+
+    if not isinstance(classification, dict):
+        return {"intent": "unknown", "parameters": {}}
 
     allowed_intents = {
         "get_time",
@@ -199,26 +186,8 @@ User request: {prompt}
 
 
 def ask_mimo(prompt, memories=None, history=None):
-    memory_context = ""
-
-    if memories:
-        memory_context = "\n".join(
-            f"- [{memory.get('category', 'other')}] {memory['content']}"
-            for memory in memories
-        )
-
-    system_prompt = SYSTEM_PROMPT + f"""
-
-USER MEMORY:
-
-{memory_context if memory_context else "No saved memories available."}
-
-MEMORY RULES:
-- Use these memories when answering personal questions.
-- Treat them as facts explicitly saved by the user.
-- Never invent additional personal information.
-- If the information is missing, say so.
-"""
+    # The character lives in core/persona.py so the UI, the CLI and the phone agree.
+    system_prompt = persona_system_prompt(current_persona(), memories or [])
 
     messages = [
         {
@@ -235,4 +204,10 @@ MEMORY RULES:
         "content": prompt
     })
 
-    return call_ollama(messages)
+    # The system prompt embeds the user's memories, so keep that call on this
+    # machine unless the user explicitly allowed memories to reach the cloud.
+    return call_llm(
+        messages,
+        task="chat",
+        allow_cloud=(not memories) or memory_to_cloud_allowed()
+    )

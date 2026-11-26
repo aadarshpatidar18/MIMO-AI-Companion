@@ -9,3 +9,11 @@ build/
 .gradle/
 local.properties
 .DS_Store
+
+# MIMO runtime data at the repo root only - NOT any directory called data
+/data/
+.pytest_cache/
+
+# local virtualenvs (.venv is created by the setup steps)
+.venv/
+venv/
