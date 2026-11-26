@@ -1,11 +1,30 @@
-from fastapi import FastAPI, HTTPException
+import logging
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from uuid import uuid4
 
+from .core.agent import get_manager, shutdown_manager
+from .core.agent.routes import router as agent_router
+from .core.conversations import CONTENT_MAX, get_store as get_conversations, shutdown_store
+from .core.conversations_routes import router as conversations_router
+from .core.llm import AllProvidersFailedError
+from .core.llm.routes import router as llm_router
+from .core.persona_routes import INDEX as WEB_INDEX
+from .core.persona_routes import router as persona_router
+from .core.security import (AuthGate, current_device, get_service,
+                            init_service as init_security, require_scope, shutdown_service)
+from .core.security.dispatch import ActionDenied, ActionPolicy
+from .core.security.pairing import SlidingWindowLimiter
+from .core.security.routes import router as security_router
+from .intent_rules import detect_memory_category
 from .llm import ask_mimo, classify_intent
-from .tools import execute_tool
+from .legacy_tools import execute_tool
 from .memory import (
     initialize_memory,
     save_memory,
@@ -14,28 +33,59 @@ from .memory import (
     forget_memory
 )
 
+logger = logging.getLogger("mimo.api")
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    initialize_memory()
+    get_manager()          # opens the agent DB and marks tasks interrupted by a restart
+    init_security()
+    get_conversations()
+    yield
+    shutdown_manager()
+    shutdown_service()
+    shutdown_store()
+
+
 app = FastAPI(
     title="MIMO AI Companion API",
     description="API for the MIMO personal AI companion",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
+app.include_router(llm_router)
+app.include_router(agent_router)
+app.include_router(security_router)
+app.include_router(conversations_router)
+app.include_router(persona_router)
+
+# Browsers only ever talk to this backend from the local machine; native Android and
+# desktop clients are unaffected by CORS. Override with MIMO_CORS_ORIGINS if you serve a web UI.
+_origins = [o.strip() for o in os.environ.get("MIMO_CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
+    allow_origin_regex=None if _origins else r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-conversation_history = {}
+# Added after the CORS layer so a rejected request still gets CORS headers.
+app.add_middleware(AuthGate)
 
-initialize_memory()
+chat_limiter = SlidingWindowLimiter(limit=60, window_s=60.0)
+
+conversation_history = {}
 
 
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = "default"
+    # When set, the turn is stored in the shared conversation and the history comes from it.
+    conversation_id: Optional[str] = None
 
 
 class MemoryRequest(BaseModel):
@@ -47,64 +97,18 @@ class ForgetRequest(BaseModel):
     keyword: str
 
 
-def detect_memory_category(message):
-    text = message.lower()
+def process_message(message, session_id, history=None, policy=None):
+    # Every effect below goes through one policy question, because this function is
+    # the place where chat-triggered tools and memory writes actually start.
+    policy = policy or ActionPolicy(None, auth_required=False)
 
-    category_rules = {
-        "interest": [
-            "interest",
-            "interests",
-            "hobby",
-            "hobbies"
-        ],
-        "skill": [
-            "skill",
-            "skills",
-            "learning",
-            "learn"
-        ],
-        "goal": [
-            "goal",
-            "goals",
-            "ambition",
-            "ambitions"
-        ],
-        "project": [
-            "project",
-            "projects"
-        ],
-        "preference": [
-            "preference",
-            "preferences"
-        ],
-        "education": [
-            "education",
-            "academic"
-        ]
-    }
-
-    personal_question = (
-        "my " in text
-        or "about me" in text
-        or "do you remember" in text
-    )
-
-    if not personal_question:
-        return None
-
-    for category, keywords in category_rules.items():
-        if any(word in text for word in keywords):
-            return category
-
-    return None
-
-
-def process_message(message, session_id):
-    history = conversation_history.setdefault(session_id, [])
+    if history is None:
+        history = conversation_history.setdefault(session_id, [])
 
     category = detect_memory_category(message)
 
     if category:
+        policy.require("memory.read")
         memories = search_memory("", category)
 
         if memories:
@@ -130,6 +134,7 @@ def process_message(message, session_id):
         "open_website",
         "open_app"
     ]:
+        policy.require("tool.invoke")
         result = execute_tool(intent, parameters)
 
         if not result["success"]:
@@ -144,6 +149,7 @@ def process_message(message, session_id):
         if not isinstance(content, str) or not content.strip():
             response = "Please tell me what to remember."
         else:
+            policy.require("memory.write")
             saved = save_memory(content, category)
 
             response = (
@@ -153,6 +159,7 @@ def process_message(message, session_id):
             )
 
     elif intent == "search_memory":
+        policy.require("memory.read")
         keyword = parameters.get("keyword", "")
         category = parameters.get("category")
 
@@ -171,13 +178,16 @@ def process_message(message, session_id):
         keyword = parameters.get("keyword", "")
 
         if keyword:
+            policy.require("memory.write")
             count = forget_memory(keyword)
             response = f"Forgot {count} matching memories."
         else:
             response = "Please specify what to forget."
 
     elif intent == "general_question":
-        memories = get_memories()
+        # Personal context is optional here: a device without memory:read still gets
+        # an answer, just without stored memories.
+        memories = get_memories() if policy.allows("memory.read") else []
 
         response = ask_mimo(
             message,
@@ -191,12 +201,30 @@ def process_message(message, session_id):
     return response, intent
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
+    """The MIMO interface. On a phone it is a chat app; on the laptop it is the full panel."""
+    if WEB_INDEX.is_file():
+        return FileResponse(WEB_INDEX, media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
+    return {"name": "MIMO AI Companion", "status": "running", "version": "1.0.0",
+            "detail": "Web interface missing from this build."}
+
+
+@app.get("/system/capabilities")
+def system_capabilities():
+    """What MIMO can actually do on this machine right now."""
+    from .tools import capability_report
+    return capability_report()
+
+
+@app.get("/info")
+def info():
     return {
         "name": "MIMO AI Companion",
         "status": "running",
-        "version": "1.0.0"
+        "version": "1.1.0",
+        "app": "/",
     }
 
 
@@ -208,8 +236,25 @@ def health():
     }
 
 
+def _no_model():
+    logger.warning("No model available for chat request", exc_info=True)
+    raise HTTPException(
+        status_code=503,
+        detail="No AI model is available. Make sure Ollama is running "
+               "(or configure a cloud model)."
+    )
+
+
+def _internal():
+    logger.exception("Chat request failed")
+    raise HTTPException(
+        status_code=500,
+        detail="MIMO hit an internal error. Check the backend log."
+    )
+
+
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, http_request: Request):
     message = request.message.strip()
 
     if not message:
@@ -218,10 +263,64 @@ def chat(request: ChatRequest):
             detail="Message cannot be empty."
         )
 
+    if len(message) > CONTENT_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Message is too long (max {CONTENT_MAX} characters)."
+        )
+
+    device = current_device(http_request)
+    policy = ActionPolicy(device, get_service().store.require_auth())
+    if not chat_limiter.allow(device["id"] if device else
+                              (getattr(http_request.client, "host", "") or "?")):
+        raise HTTPException(status_code=429, detail="Too many messages; wait a moment.")
+
     session_id = request.session_id or "default"
 
+    # Durable path: the one the apps use. Requires a paired device to write to the
+    # shared history, because that history is readable from every other device.
+    if request.conversation_id is None and device is not None:
+        # A paired device must name its conversation: falling back to a shared
+        # in-process default would put two devices into one implicit history.
+        raise HTTPException(status_code=400,
+                            detail="'conversation_id' is required for a paired device.")
+
+    if request.conversation_id:
+        if device is None or "chat:write" not in device["scopes"]:
+            raise HTTPException(status_code=401,
+                                detail="A paired device with 'chat:write' is required "
+                                       "to use a shared conversation.")
+        conversations = get_conversations()
+        if conversations.get(request.conversation_id) is None:
+            raise HTTPException(status_code=404, detail="Unknown conversation.")
+        history = conversations.history(request.conversation_id, limit=10)
+        try:
+            response, intent = process_message(message, session_id, history=history,
+                                               policy=policy)
+        except ActionDenied as denied:
+            raise HTTPException(status_code=403, detail=str(denied)) from None
+        except AllProvidersFailedError:
+            _no_model()
+        except Exception:
+            _internal()
+        try:
+            stored = conversations.append_turn(request.conversation_id, message, response,
+                                               device_id=device["id"])
+        except Exception:
+            _internal()
+        if stored is None:
+            raise HTTPException(status_code=404, detail="Unknown conversation.")
+        return {
+            "success": True,
+            "session_id": session_id,
+            "conversation_id": request.conversation_id,
+            "device_id": device["id"],
+            "intent": intent,
+            "response": response
+        }
+
     try:
-        response, intent = process_message(message, session_id)
+        response, intent = process_message(message, session_id, policy=policy)
 
         history = conversation_history.setdefault(session_id, [])
 
@@ -245,17 +344,21 @@ def chat(request: ChatRequest):
             "response": response
         }
 
-    except Exception as error:
-        raise HTTPException(
-            status_code=500,
-            detail=str(error)
-        )
+    except ActionDenied as denied:
+        raise HTTPException(status_code=403, detail=str(denied)) from None
+
+    except AllProvidersFailedError:
+        _no_model()
+
+    except Exception:
+        _internal()
 
 
 @app.get("/memory")
 def read_memory(
     keyword: str = "",
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    _: Optional[dict] = Depends(require_scope("memory:read", allow_unpaired=True))
 ):
     memories = search_memory(keyword, category)
 
@@ -267,7 +370,8 @@ def read_memory(
 
 
 @app.post("/memory")
-def create_memory(request: MemoryRequest):
+def create_memory(request: MemoryRequest,
+                  _: Optional[dict] = Depends(require_scope("memory:write", allow_unpaired=True))):
     if not request.content.strip():
         raise HTTPException(
             status_code=400,
@@ -291,7 +395,8 @@ def create_memory(request: MemoryRequest):
 
 
 @app.delete("/memory")
-def delete_memory(request: ForgetRequest):
+def delete_memory(request: ForgetRequest,
+                  _: Optional[dict] = Depends(require_scope("memory:write", allow_unpaired=True))):
     count = forget_memory(request.keyword)
 
     return {

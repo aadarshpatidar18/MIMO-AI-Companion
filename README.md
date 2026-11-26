@@ -10,14 +10,29 @@ The long-term vision is to develop MIMO into an intelligent personal assistant c
 
 ## Current Features
 
-- **Conversational AI:** Interact with MIMO through an Android chat interface.
-- **Local LLM:** Uses Ollama with Qwen 2.5 (1.5B) for local inference.
-- **Persistent Memory:** Stores user interests, skills, goals, preferences, and projects using SQLite.
-- **Memory Retrieval:** Retrieves stored information based on user queries.
-- **Memory Management:** Supports saving, searching, updating, and forgetting memories.
-- **REST API:** FastAPI connects the Android application to the AI backend.
-- **Android Integration:** Native Android application built using Kotlin and Jetpack Compose.
-- **Basic Tool Execution:** Supports selected operations such as calculations, date/time retrieval, and opening allowlisted websites.
+- **One interface, every screen:** a responsive web app served by the backend at `/`. Chat,
+  history, memory, devices, agent activity and settings on the laptop and in a phone browser.
+- **MIMO's character:** name, warmth, humour and verbosity are yours to set, and the same settings
+  shape every answer (`backend/core/persona.py`).
+- **Provider-independent models:** Ollama locally, Gemini in the cloud, with retry, cooldown,
+  fallback, usage tracking and per-task routing. Personal memory stays on the machine unless you
+  opt in.
+- **Durable, shared conversations:** SQLite-backed history that survives a restart and is readable
+  from every paired device.
+- **Device identity:** pairing codes, hashed bearer tokens, per-device scopes, revocation and an
+  audit trail.
+- **Agent engine:** plan → policy → execute → verify → replan, with autonomy levels, background
+  tasks, cancellation, confirmations, timeouts and restart recovery.
+- **Persistent memory:** interests, skills, goals, preferences and projects, searchable, editable
+  and deletable from the app.
+- **Operators:** file management inside a sandbox, approved PowerShell, allowlisted dev commands,
+  application launch/close, screenshots and OCR, mouse and keyboard, and a real Playwright browser
+  that searches, reads and — with your approval — clicks (`docs/OPERATORS.md`).
+- **Voice:** speak to MIMO and have it answer aloud in the browser interface; local whisper is the
+  planned upgrade.
+- **Android client:** Kotlin/Compose chat app (chat only for now).
+
+Setup: `docs/INSTALL.md`. Interface: `docs/UI.md`. Operators: `docs/OPERATORS.md`.
 
 ## System Architecture
 
@@ -176,6 +191,42 @@ http://10.0.2.2:8000
 For a physical Android device, use your development machine's local network IP address. Both devices must be connected to an accessible network.
 
 **Note:** The current development configuration uses HTTP. Do not expose the development backend publicly. Production deployment requires authentication, secure communication, and appropriate access controls.
+
+## Model Providers
+
+MIMO routes every model call through `backend/core/llm`. By default it runs fully offline on Ollama.
+To enable Google Gemini (optional), copy `.env.example` to `.env`, set `GEMINI_API_KEY`, then choose
+`auto` or `gemini` via `PUT /llm/selection`. Gemini failures and rate limits fall back to Ollama
+automatically. Personal memories are never sent to a cloud model unless `MIMO_ALLOW_MEMORY_TO_CLOUD=true`.
+See `docs/MODEL_ROUTING.md` and `docs/AUDIT.md`.
+
+## The interface
+
+Start the backend and open <http://127.0.0.1:8000> — MIMO's own interface, the same one on your
+laptop and your phone browser. Chat, conversation history, memory, devices and permissions, agent
+activity with a Stop button, and MIMO's character (name, warmth, humour, how much it says) all live
+there. Pairing happens in the app: `python -m backend.main pair` on the PC prints a code, you type it
+once on the phone, and both devices share one history from then on.
+
+`docs/UI.md` describes the screens and what is wired to what.
+
+## Devices, identity and shared conversations
+
+MIMO is one brain for several screens. A device pairs once with a short code shown on the PC,
+receives a bearer token (only its SHA-256 hash is stored), and from then on reads and writes the
+same conversations as every other device.
+
+```bash
+python -m backend.main pair       # prints a code on the PC (backend must be running)
+python -m backend.main devices    # what is paired, and when each was last seen
+```
+
+`POST /chat` with a `conversation_id` uses the shared, durable history; without one it keeps the
+older in-memory behaviour. Full endpoint and scope reference: `docs/DEVICES_AND_CONVERSATIONS.md`.
+Set `MIMO_REQUIRE_AUTH=1` once your PC is paired to require a token on every route.
+
+Run the tests: `pip install -r requirements-dev.txt && pytest`.
+Terminal chat: `python -m backend.main` (from the project root).
 
 ## Development Roadmap
 

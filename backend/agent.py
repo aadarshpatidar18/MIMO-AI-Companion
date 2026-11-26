@@ -1,5 +1,5 @@
-from planner import create_plan
-from tools import execute_tool
+from .planner import create_plan
+from .legacy_tools import execute_tool
 
 MAX_STEPS = 5
 
