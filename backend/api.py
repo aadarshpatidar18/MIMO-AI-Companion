@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import uuid4
 
@@ -30,7 +30,9 @@ from .memory import (
     save_memory,
     get_memories,
     search_memory,
-    forget_memory
+    forget_memory,
+    set_importance,
+    update_memory
 )
 
 logger = logging.getLogger("mimo.api")
@@ -95,6 +97,12 @@ class MemoryRequest(BaseModel):
 
 class ForgetRequest(BaseModel):
     keyword: str
+
+
+class MemoryPatch(BaseModel):
+    content: Optional[str] = Field(default=None, max_length=500)
+    category: Optional[str] = Field(default=None, max_length=20)
+    importance: Optional[int] = Field(default=None, ge=1, le=5)
 
 
 def process_message(message, session_id, history=None, policy=None):
@@ -392,6 +400,26 @@ def create_memory(request: MemoryRequest,
             else "Memory already exists."
         )
     }
+
+
+@app.put("/memory/{memory_id}")
+def correct_memory(memory_id: int, request: MemoryPatch,
+                   _: Optional[dict] = Depends(require_scope("memory:write", allow_unpaired=True))):
+    """Correct a remembered fact: its wording, its category, or how much it matters."""
+    if not any(m["id"] == memory_id for m in get_memories(1000)):
+        raise HTTPException(status_code=404, detail="Unknown memory.")
+    if request.content is not None or request.category is not None:
+        ok = update_memory(memory_id, request.content or "", request.category)
+        if not ok and request.content:
+            raise HTTPException(status_code=400,
+                                detail="That memory could not be updated: it is empty or "
+                                       "duplicates another one.")
+    if request.importance is not None and not set_importance(memory_id, request.importance):
+        raise HTTPException(status_code=404, detail="Unknown memory.")
+    row = next((m for m in get_memories(500) if m["id"] == memory_id), None)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown memory.")
+    return {"success": True, "memory": row}
 
 
 @app.delete("/memory")

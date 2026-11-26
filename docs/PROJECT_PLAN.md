@@ -76,7 +76,7 @@ functional ones because it composes 2 + 3 + 6 + 8.
 |---|---|---|
 | 1 | Text chat | ✅ interface, API and Android client |
 | 2 | Voice | ✅ speak and hear in the browser interface; local Whisper still to come |
-| 3 | Remembers across sessions | ✅ memory + durable conversations |
+| 3 | Remembers across sessions | ✅ memory with importance + ranked recall and correction; durable conversations |
 | 4 | Works on Windows | ⚠️ built for Windows (operators, screenshot, PowerShell) — untested until Aadarsh's PC |
 | 5 | Works on Android | ⚠️ phone browser has the full interface; native app still chat-only, unbuilt here |
 | 6 | Shared conversations + memory | ✅ paired devices, one history |
@@ -111,6 +111,13 @@ Android. Everything else in the list now exists and is tested.
 - `backend/tools/memory_tools.py`: remember / recall / forget, so the Memory agent is real.
 - `GET /agent/roster`, `agent` override on task creation, the agent recorded on every task and shown
   in Activity. 288 tests.
+
+## 6e. Memory — shipped
+
+- `backend/memory.py`: importance by category plus recall lift, FTS5 ranked search with a LIKE
+  fallback, recall counting, in-place migration of old databases, `PUT /memory/{id}` for correction.
+- The dashboard shows importance, recall count and a Correct button per fact.
+- `docs/MEMORY.md`. 307 tests.
 
 ## 7. Decisions I need from Aadarsh
 

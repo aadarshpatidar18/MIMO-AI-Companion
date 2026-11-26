@@ -711,14 +711,41 @@
       for (const m of body.memories) {
         const el = document.createElement("div");
         el.className = "item";
+        const stars = "★".repeat(m.importance || 3) + "☆".repeat(Math.max(0, 5 - (m.importance || 3)));
         el.innerHTML = '<div class="body"><span class="tag">' + esc(m.category) + "</span> " +
-                       esc(m.content) + '<div class="faint">' + esc(m.created_at || "") + "</div></div>" +
-                       '<button class="btn sm danger">Forget</button>';
-        el.querySelector("button").onclick = async () => {
+                       esc(m.content) +
+                       '<div class="faint">' + esc(stars) + " importance " + (m.importance || 3) +
+                       " · recalled " + (m.access_count || 0) + "x" +
+                       (m.last_used ? " · last " + esc(m.last_used) : "") + "</div></div>";
+
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+
+        const edit = document.createElement("button");
+        edit.className = "btn sm";
+        edit.textContent = "Correct";
+        edit.onclick = async () => {
+          const text = prompt("Correct this memory:", m.content);
+          if (text === null) return;
+          try {
+            await api("/memory/" + m.id, { method: "PUT", body: JSON.stringify({ content: text }) });
+            toast("Corrected.");
+            loadMemory();
+          } catch (e) { toast(e.message); }
+        };
+
+        const forget = document.createElement("button");
+        forget.className = "btn sm danger";
+        forget.textContent = "Forget";
+        forget.onclick = async () => {
           await api("/memory", { method: "DELETE", body: JSON.stringify({ keyword: m.content }) });
           toast("Forgotten.");
           loadMemory();
         };
+
+        actions.append(edit, forget);
+        el.appendChild(actions);
         list.appendChild(el);
       }
     } catch (e) { toast(e.message); }
