@@ -31,6 +31,13 @@ object OperatorBridge {
         _state.value = OperatorState(connected = false)
     }
 
+    /** Only the window changed; the tree has not been read yet. */
+    fun window(packageName: String) {
+        if (_state.value.packageName != packageName) {
+            _state.value = _state.value.copy(packageName = packageName)
+        }
+    }
+
     fun screenRead(snapshot: ScreenSnapshot) {
         _state.value = _state.value.copy(
             packageName = snapshot.packageName,

@@ -49,7 +49,7 @@ class AppContainer(private val context: Context) {
     val memory = MemoryRepository(client)
     val agents = AgentRepository(client)
 
-    val notifications = NotificationCenter(context, client, database)
+    val notifications = NotificationCenter(context, client, database, scope)
 
     val connection = com.mimo.companion.device.ConnectionMonitor(client, scope)
 

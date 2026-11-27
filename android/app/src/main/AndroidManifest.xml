@@ -11,6 +11,20 @@
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!--
+      Android 11+ hides other apps' services unless they are declared here. Without these the
+      phone's own speech recogniser and text-to-speech engine are invisible to MIMO, and voice
+      silently reports "no engine" on a device that has one.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MimoApp"
         android:allowBackup="true"

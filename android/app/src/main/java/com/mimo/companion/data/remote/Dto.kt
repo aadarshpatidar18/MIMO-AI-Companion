@@ -155,6 +155,13 @@ data class AgentTaskDto(
     val needsApproval: Boolean
         get() = status == "awaiting_confirmation" || status == "waiting_confirmation" ||
             (pending != null && pending !is kotlinx.serialization.json.JsonNull)
+
+    /** Which step is paused, so an approval can name it instead of "whatever is waiting now". */
+    val pendingStepIndex: Int?
+        get() = (pending as? kotlinx.serialization.json.JsonObject)
+            ?.get("index")
+            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            ?.toIntOrNull()
 }
 
 @Serializable

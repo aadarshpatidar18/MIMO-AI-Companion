@@ -66,6 +66,19 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun stopEverything() {
+        viewModelScope.launch {
+            val (stopped, failed) = runCatching { container.agents.stopAll() }
+                .getOrElse { 0 to 0 }
+            notice = when {
+                stopped == 0 && failed == 0 -> "Nothing was running."
+                failed == 0 -> "Stopped $stopped task(s)."
+                else -> "Stopped $stopped task(s); $failed could not be cancelled."
+            }
+            refresh()
+        }
+    }
+
     fun cancel(id: String) {
         viewModelScope.launch {
             runCatching { container.agents.cancel(id) }
@@ -74,9 +87,9 @@ class ActivityViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun confirm(id: String, approve: Boolean) {
+    fun confirm(id: String, approve: Boolean, stepIndex: Int? = null) {
         viewModelScope.launch {
-            runCatching { container.agents.confirm(id, approve) }
+            runCatching { container.agents.confirm(id, approve, stepIndex) }
                 .onSuccess { refresh() }
                 .onFailure { notice = it.message }
         }

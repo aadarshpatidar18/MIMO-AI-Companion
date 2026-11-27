@@ -3,9 +3,13 @@ package com.mimo.companion.operator
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
 
 data class ActionResult(
     val ok: Boolean,
@@ -16,14 +20,17 @@ data class ActionResult(
 /**
  * Performs one action at a time and reports what happened.
  *
- * The rule this class exists to enforce: never tap blind. An action is only attempted on an element
- * that was read from the live tree, that is enabled, and whose bounds are on screen. When the node
- * itself refuses the action, the gesture fallback taps the element's own centre — not a guessed
- * coordinate from a screenshot.
+ * Three rules this class exists to enforce:
+ *
+ * 1. **Never tap blind.** An action only targets a node that was read from the live tree and has
+ *    just been refreshed, or the bounds of that node re-read after the refresh.
+ * 2. **Wait for the gesture.** `dispatchGesture` is asynchronous; verifying "did it work" before
+ *    the tap has landed produces false "nothing changed" reports. The gesture callback is awaited.
+ * 3. **Report, don't assume.** When Android refuses, the caller gets a sentence it can act on.
  */
 class UiActions(private val service: MimoAccessibilityService) {
 
-    fun click(element: ElementInfo, nodes: List<AccessibilityNodeInfo>): ActionResult {
+    suspend fun click(element: ElementInfo, nodes: List<AccessibilityNodeInfo>): ActionResult {
         if (!element.enabled) return ActionResult(false, "'${element.label}' is disabled.")
         val node = UiReader.nodeFor(service.lastElements(), nodes, element)
         if (node != null) {
@@ -35,7 +42,13 @@ class UiActions(private val service: MimoAccessibilityService) {
         if (!element.clickable) {
             return ActionResult(false, "'${element.label}' is not tappable.")
         }
-        return if (tapAt(element.centreX, element.centreY)) {
+        // The node refused (or is gone). Tap the element's *current* centre, not the centre recorded
+        // in a snapshot that may be a second old: layouts scroll under us.
+        val bounds = node?.let { liveBounds(it) } ?: element.bounds
+        if (bounds.isEmpty) {
+            return ActionResult(false, "'${element.label}' is no longer on screen.")
+        }
+        return if (tapAtAndWait(bounds.centreX, bounds.centreY)) {
             ActionResult(true, "Tapped '${element.label}' at its centre.")
         } else {
             ActionResult(false, "Android refused the tap on '${element.label}'.")
@@ -56,7 +69,7 @@ class UiActions(private val service: MimoAccessibilityService) {
         else ActionResult(false, "Android refused the text in '${element.label}'.")
     }
 
-    fun scroll(forward: Boolean = true): ActionResult {
+    suspend fun scroll(forward: Boolean = true): ActionResult {
         val root = service.rootInActiveWindow
         val node = findScrollable(root, 0)
         val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
@@ -68,7 +81,7 @@ class UiActions(private val service: MimoAccessibilityService) {
         val width = service.resources.displayMetrics.widthPixels
         val from = if (forward) height * 0.7f else height * 0.3f
         val to = if (forward) height * 0.3f else height * 0.7f
-        return if (swipe(width / 2f, from, width / 2f, to)) {
+        return if (swipeAndWait(width / 2f, from, width / 2f, to)) {
             ActionResult(true, if (forward) "Scrolled down." else "Scrolled up.")
         } else {
             ActionResult(false, "Nothing on this screen can scroll.")
@@ -83,6 +96,12 @@ class UiActions(private val service: MimoAccessibilityService) {
 
     fun pressRecents(): Boolean =
         service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+
+    private fun liveBounds(node: AccessibilityNodeInfo): Bounds {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        return Bounds(rect.left, rect.top, rect.right, rect.bottom)
+    }
 
     private fun climbToClickable(start: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         var node: AccessibilityNodeInfo? = start
@@ -105,11 +124,19 @@ class UiActions(private val service: MimoAccessibilityService) {
         return null
     }
 
-    private fun tapAt(x: Int, y: Int): Boolean = gesture(x.toFloat(), y.toFloat(), x.toFloat(), y.toFloat())
+    private suspend fun tapAtAndWait(x: Int, y: Int): Boolean =
+        gestureAndWait(x.toFloat(), y.toFloat(), x.toFloat(), y.toFloat())
 
-    private fun swipe(x1: Float, y1: Float, x2: Float, y2: Float): Boolean = gesture(x1, y1, x2, y2)
+    private suspend fun swipeAndWait(x1: Float, y1: Float, x2: Float, y2: Float): Boolean =
+        gestureAndWait(x1, y1, x2, y2)
 
-    private fun gesture(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+    /**
+     * Dispatches a gesture and suspends until Android says it completed (or was cancelled).
+     *
+     * The callback arrives on the main looper, which is also where this coroutine runs, so it
+     * resumes rather than blocks — a latch here would deadlock the service.
+     */
+    private suspend fun gestureAndWait(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
         val path = Path().apply {
             moveTo(x1, y1)
@@ -117,6 +144,19 @@ class UiActions(private val service: MimoAccessibilityService) {
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 120)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return service.dispatchGesture(gesture, null, null)
+        return suspendCancellableCoroutine { continuation ->
+            val settled = AtomicBoolean(false)
+            val callback = object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(description: GestureDescription?) {
+                    if (settled.compareAndSet(false, true)) continuation.resume(true)
+                }
+
+                override fun onCancelled(description: GestureDescription?) {
+                    if (settled.compareAndSet(false, true)) continuation.resume(false)
+                }
+            }
+            val accepted = service.dispatchGesture(gesture, callback, null)
+            if (!accepted && settled.compareAndSet(false, true)) continuation.resume(false)
+        }
     }
 }

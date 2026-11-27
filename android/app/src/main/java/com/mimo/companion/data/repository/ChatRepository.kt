@@ -22,7 +22,8 @@ import java.time.Instant
 import java.util.UUID
 
 sealed interface SendOutcome {
-    data object Sent : SendOutcome
+    /** The answer is carried so callers can speak it; the repository does not know about voices. */
+    data class Sent(val answer: String) : SendOutcome
     /** Accepted locally and will be sent when MIMO is reachable again. */
     data object Queued : SendOutcome
     data class Failed(val message: String) : SendOutcome
@@ -234,7 +235,7 @@ class ChatRepository(
                 )
             }
             touchConversation(remoteId, text, answer)
-            SendOutcome.Sent
+            SendOutcome.Sent(answer)
         } catch (e: ApiException) {
             if (e.isOffline) {
                 SendOutcome.Queued

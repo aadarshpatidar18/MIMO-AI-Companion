@@ -30,16 +30,20 @@ class ScreenAnalyzer {
     suspend fun readText(bitmap: Bitmap): String = withContext(Dispatchers.Default) {
         val scaled = downscale(bitmap)
         val image = InputImage.fromBitmap(scaled, 0)
-        suspendCancellableCoroutine { continuation ->
-            recognizer.process(image)
-                .addOnSuccessListener { result ->
-                    if (continuation.isActive) continuation.resume(result.text)
-                }
-                .addOnFailureListener { error ->
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(error)
+        try {
+            suspendCancellableCoroutine { continuation ->
+                recognizer.process(image)
+                    .addOnSuccessListener { result ->
+                        if (continuation.isActive) continuation.resume(result.text)
                     }
-                }
+                    .addOnFailureListener { error ->
+                        if (continuation.isActive) {
+                            continuation.resumeWithException(error)
+                        }
+                    }
+            }
+        } finally {
+            if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
         }
     }
 

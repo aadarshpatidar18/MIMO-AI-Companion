@@ -43,6 +43,9 @@ fun ActivityScreen(viewModel: ActivityViewModel, modifier: Modifier = Modifier) 
             if (viewModel.loading) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             }
+            TextButton(onClick = viewModel::stopEverything) {
+                Text("Stop all", color = Color(0xFFB3261E))
+            }
             IconButton(onClick = viewModel::refresh) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
             }
@@ -115,8 +118,9 @@ private fun TaskCard(task: AgentTaskDto, viewModel: ActivityViewModel) {
                 )
                 Spacer(Modifier.weight(1f))
                 if (task.needsApproval) {
-                    TextButton(onClick = { viewModel.confirm(task.id, true) }) { Text("Approve") }
-                    TextButton(onClick = { viewModel.confirm(task.id, false) }) { Text("Deny") }
+                    val step = task.pendingStepIndex
+                    TextButton(onClick = { viewModel.confirm(task.id, true, step) }) { Text("Approve") }
+                    TextButton(onClick = { viewModel.confirm(task.id, false, step) }) { Text("Deny") }
                 } else if (running) {
                     TextButton(onClick = { viewModel.cancel(task.id) }) {
                         Text("Stop", color = Color(0xFFB3261E))

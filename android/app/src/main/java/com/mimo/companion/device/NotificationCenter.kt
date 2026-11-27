@@ -20,6 +20,7 @@ import com.mimo.companion.data.prefs.AppSettings
 import com.mimo.companion.data.remote.AgentTaskDto
 import com.mimo.companion.data.remote.ApiException
 import com.mimo.companion.data.remote.MimoClient
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,7 +36,13 @@ import java.time.temporal.ChronoUnit
 class NotificationCenter(
     private val context: Context,
     private val client: MimoClient,
-    private val database: MimoDatabase
+    private val database: MimoDatabase,
+    /**
+     * Owned by the container. It is passed in rather than reached for through `MimoApp.container`,
+     * which is still unassigned while the container itself is being built — that reach caused a
+     * first-launch crash (`UninitializedPropertyAccessException`) before the window ever opened.
+     */
+    private val scope: CoroutineScope
 ) {
     private val manager = NotificationManagerCompat.from(context)
 
@@ -57,14 +64,17 @@ class NotificationCenter(
 
     fun start(isPaired: () -> Boolean, settingsProvider: () -> AppSettings) {
         ensureChannels()
-        (context as? MimoApp)?.container?.scope?.launch {
+        scope.launch {
             // A short warm-up delay: the first screen should not pay for a network round trip.
             delay(4_000)
             while (isActive) {
                 if (isPaired() && canPost()) {
                     runCatching { poll(settingsProvider()) }
                 }
-                delay(20_000)
+                // 60 s, not 20: a phone that is not looking at MIMO should not wake its radio every
+                // twenty seconds all day (that was 4,320 requests a day for an idle app). The
+                // Activity screen polls at 5 s while it is actually open.
+                delay(POLL_INTERVAL_MS)
             }
         }
     }
@@ -132,6 +142,7 @@ class NotificationCenter(
     }
 
     companion object {
+        const val POLL_INTERVAL_MS = 60_000L
         const val CHANNEL_TASKS = "mimo_tasks"
         const val CHANNEL_APPROVALS = "mimo_approvals"
         const val CHANNEL_ACTIVITY = "mimo_activity"

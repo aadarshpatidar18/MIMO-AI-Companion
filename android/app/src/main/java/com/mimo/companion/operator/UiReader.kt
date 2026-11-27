@@ -85,13 +85,18 @@ object UiReader {
         }
     }
 
-    /** The node behind an element of the last snapshot, if it is still attached. */
+    /**
+     * The node behind an element of the last snapshot, refreshed against the live window.
+     *
+     * [AccessibilityNodeInfo.refresh] is what tells us the view is still there and re-reads its
+     * state; without it a snapshot taken a second ago can point at a node that has been recycled,
+     * and an action on it either fails silently or lands on whatever is in that position now.
+     */
     fun nodeFor(elements: List<ElementInfo>, nodes: List<AccessibilityNodeInfo>, element: ElementInfo):
         AccessibilityNodeInfo? {
         if (element.index !in elements.indices) return null
         if (elements[element.index].index != element.index) return null
-        // `isAttachedToWindow` was removed in recent SDKs; a stale node simply refuses the action,
-        // which the caller already turns into an honest failure.
-        return nodes.getOrNull(element.index)
+        val node = nodes.getOrNull(element.index) ?: return null
+        return if (node.refresh()) node else null
     }
 }

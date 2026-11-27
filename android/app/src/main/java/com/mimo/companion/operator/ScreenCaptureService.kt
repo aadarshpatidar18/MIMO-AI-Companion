@@ -128,14 +128,19 @@ class ScreenCaptureService : Service() {
                         val pixelStride = plane.pixelStride
                         val paddedWidth = rowStride / pixelStride
                         val buffer = plane.buffer
-                        val bitmap = Bitmap.createBitmap(
+                        val padded = Bitmap.createBitmap(
                             paddedWidth, image.height, Bitmap.Config.ARGB_8888
                         )
-                        bitmap.copyPixelsFromBuffer(buffer)
+                        padded.copyPixelsFromBuffer(buffer)
                         if (paddedWidth != image.width) {
-                            Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+                            // The padded frame is a row-stride artefact, not a picture: crop it and
+                            // hand back the crop, then drop the padded copy immediately. On a
+                            // 1080x2400 screen that copy alone is ~10 MB.
+                            val cropped = Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+                            padded.recycle()
+                            cropped
                         } else {
-                            bitmap
+                            padded
                         }
                     } finally {
                         image.close()

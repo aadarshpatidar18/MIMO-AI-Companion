@@ -3,8 +3,10 @@
   What MIMO's accessibility service may do, as narrowly as Android allows:
     * read the active window's content (that is the operator's "eyes")
     * perform gestures (the fallback when a node refuses a click)
-    * flag itself as an accessibility tool: it acts for the person who enabled it, and does not
-      pretend to be one of Android's own accessibility features for disabled users.
+    * NOT flag itself as an assistive tool (`isAccessibilityTool`): MIMO is automation software
+      the owner enables for itself. Declaring true would claim to be an accessibility aid for
+      disabled users, which it is not. The cost is that Android 13+ shows "restricted setting"
+      for a sideloaded app; the owner may need to allow restricted settings once in App info.
   It is not configured to receive every event type in the system, only window changes, so it is
   asleep unless the screen actually changes.
 -->
@@ -15,6 +17,6 @@
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_description"
-    android:isAccessibilityTool="true"
+    android:isAccessibilityTool="false"
     android:notificationTimeout="200"
     android:settingsActivity="com.mimo.companion.MainActivity" />

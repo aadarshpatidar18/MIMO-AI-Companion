@@ -135,7 +135,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     container.chat.open(it)
                 }
                 when (val outcome = container.chat.send(conversationId, content)) {
-                    SendOutcome.Sent -> Unit
+                    is SendOutcome.Sent ->
+                        if (settings.value.voiceReplies) voice.speak(outcome.answer)
                     SendOutcome.Queued -> notice =
                         "Queued. MIMO is offline; this sends itself when the PC is back."
                     is SendOutcome.Failed -> notice = outcome.message
