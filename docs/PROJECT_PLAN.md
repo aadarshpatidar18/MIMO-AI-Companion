@@ -133,6 +133,16 @@ Android. Everything else in the list now exists and is tested.
 - Still missing from the original list: local voice (Module B), the PySide6 desktop shell
   (Module C), measured load/performance testing (Module D), and the Windows installer (Module E).
 
+## 6g. Local voice engine — built and measured (2026-11-27)
+
+- `backend/core/voice/`: `faster-whisper` STT and Kokoro TTS behind one manager, `/voice/*` routes,
+  lazy loading so a machine without the models still starts, cloud refused unless chosen *and*
+  allowed, real sentence-level barge-in.
+- Measured here (4 CPU, no GPU): STT RTF 0.45–0.48 warm (2.67 s clip in ~1.2 s), TTS first chunk
+  400 ms warm / 1660 ms cold, +1.25 GB resident for both models. Round trip reproduced the
+  sentence exactly. Numbers and caveats in `docs/VOICE.md`.
+- 35 new tests (`backend/tests/test_voice.py`); suite is 336 passed / 1 skipped.
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a
