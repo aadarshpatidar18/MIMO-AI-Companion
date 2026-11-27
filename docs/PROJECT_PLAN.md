@@ -143,6 +143,18 @@ Android. Everything else in the list now exists and is tested.
   sentence exactly. Numbers and caveats in `docs/VOICE.md`.
 - 35 new tests (`backend/tests/test_voice.py`); suite is 336 passed / 1 skipped.
 
+## 6h. Load and resilience — measured (2026-11-27)
+
+- `scripts/load_test.py` runs the real server in its own process and reports latency percentiles,
+  throughput, RSS/CPU and database size for sequential and 9-device concurrent chat, a 200-message
+  conversation, memory search over 300 facts, a duplicate-request storm, auth failures, parallel
+  agent goals and cancellation.
+- Measured here: sequential p50 5.4 ms / p95 7.6 ms (178 turns/s); 9 devices p50 37.6 ms
+  (225 turns/s); memory search p50 6 ms; server RSS 71 MB. Written up with bottlenecks and what is
+  *not* measured in `docs/PERFORMANCE.md`.
+- `backend/tests/test_resilience.py`: total provider outage → 503 with nothing stored, then
+  recovery; one device's rate limit cannot lock another out; history survives a store restart.
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a
