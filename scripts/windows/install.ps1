@@ -19,6 +19,9 @@
 .PARAMETER WithVoice
     Also install faster-whisper and kokoro-onnx (about 1.5 GB of wheels and models).
 
+.PARAMETER WithDesktop
+    Also install the PySide6 desktop shell and create a "MIMO Desktop" shortcut.
+
 .PARAMETER Autostart
     Start MIMO when you log in (Scheduled Task, current user, no admin rights needed).
 
@@ -30,6 +33,7 @@ param(
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'MIMO'),
     [string]$Python,
     [switch]$WithVoice,
+    [switch]$WithDesktop,
     [switch]$Autostart
 )
 
@@ -75,7 +79,7 @@ Write-Ok "Python $version ($Python)"
 # --------------------------------------------------------------- 2. files
 Write-Step 'Copying the application…'
 if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
-foreach ($item in @('backend', 'config', 'scripts', 'docs', 'requirements.txt',
+foreach ($item in @('backend', 'config', 'scripts', 'docs', 'desktop', 'requirements.txt',
                     'requirements-dev.txt', 'requirements-optional.txt', 'README.md')) {
     $source = Join-Path $repo $item
     if (Test-Path $source) {
@@ -107,6 +111,16 @@ if ($WithVoice) {
         Write-Warn 'Voice packages failed to install; MIMO still works with text and the browser microphone.'
     } else {
         Write-Ok 'Voice packages installed (models download on first use)'
+    }
+}
+
+if ($WithDesktop) {
+    Write-Step 'Installing the desktop shell (PySide6, about 250 MB once)…'
+    & $venvPython -m pip install --quiet "PySide6>=6.6"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn 'PySide6 failed to install; the browser interface still works.'
+    } else {
+        Write-Ok 'Desktop shell installed'
     }
 }
 
@@ -152,9 +166,17 @@ New-Shortcut (Join-Path $startMenu 'MIMO.lnk') $powershell `
     "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`"" 'Start MIMO'
 New-Shortcut (Join-Path $startMenu 'MIMO — Stop.lnk') $powershell `
     "-NoProfile -ExecutionPolicy Bypass -File `"$stopScript`"" 'Stop MIMO'
-$desktop = [Environment]::GetFolderPath('Desktop')
-New-Shortcut (Join-Path $desktop 'MIMO.lnk') $powershell `
+$desktopFolder = [Environment]::GetFolderPath('Desktop')
+New-Shortcut (Join-Path $desktopFolder 'MIMO.lnk') $powershell `
     "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`"" 'Start MIMO'
+if ($WithDesktop) {
+    $pythonw = Join-Path $InstallDir '.venv\Scripts\pythonw.exe'
+    $desktopEntry = Join-Path $InstallDir 'desktop\run.py'
+    New-Shortcut (Join-Path $startMenu 'MIMO Desktop.lnk') $pythonw `
+        "`"$desktopEntry`"" 'MIMO desktop shell'
+    New-Shortcut (Join-Path $desktopFolder 'MIMO Desktop.lnk') $pythonw `
+        "`"$desktopEntry`"" 'MIMO desktop shell'
+}
 Write-Ok 'Shortcuts created (Start Menu and Desktop)'
 
 # ------------------------------------------------------------ 6. autostart

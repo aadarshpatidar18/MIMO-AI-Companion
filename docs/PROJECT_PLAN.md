@@ -165,6 +165,17 @@ Android. Everything else in the list now exists and is tested.
 - **Written, not executed**: no Windows machine here. The scripts are reviewed but the first run
   is the test; this is stated in the doc and in the release notes.
 
+## 6j. Desktop shell — built (2026-11-27)
+
+- `desktop/mimo_desktop/`: PySide6 window over the same API — chat, activity with approve/deny/stop,
+  memory (search, teach, correct, forget), devices with revoke, settings with pairing, and an
+  Emergency Stop that cancels every running task on the backend.
+- No duplicated logic: every screen is a route call. All HTTP runs off the GUI thread.
+- Verified headless against a real backend: `pytest desktop/tests/test_desktop.py` → 7 passed
+  (pairing, chat round trip, memory, emergency stop, auth failure, offline, window construction).
+- Not verified: a real display, DPI, sound card, or the Windows shortcut. No desktop microphone
+  yet (speech in stays in the browser and on the phone).
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a
