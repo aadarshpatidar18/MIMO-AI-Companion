@@ -76,8 +76,11 @@ keytool -genkeypair -v -keystore mimo-release.jks -alias mimo -keyalg RSA -keysi
 
 ## First run on the phone
 
-1. Start the backend on the PC: `python -m backend.main serve` (see `docs/INSTALL.md`).
-2. On the PC: `python -m backend.main pair` → it prints a single-use code.
+1. Start the backend on the PC: `uvicorn backend.api:app --host 0.0.0.0 --port 8000`
+   (or the *MIMO* shortcut the Windows installer creates — see `docs/INSTALL_WINDOWS.md`).
+2. On the PC: `python -m backend.main pair android` → it prints a single-use code.
+   The kind in the command is the kind of device the code may enroll; a phone code cannot be
+   redeemed as a desktop.
 3. In the app: Settings → MIMO address = `http://<PC-LAN-IP>:8000` → Save → type the code → Pair.
    The address must be a private LAN address for `http://`; a public host has to be `https://`.
 4. Grant notifications when Android asks.

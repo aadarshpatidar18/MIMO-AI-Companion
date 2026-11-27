@@ -55,8 +55,12 @@ LAN setup.
 
 ```powershell
 cd $env:LOCALAPPDATA\MIMO
-.venv\Scripts\python.exe -m backend.main pair
+.venv\Scripts\python.exe -m backend.main pair android
 ```
+
+Use `pair desktop` for the PySide6 app and `pair windows` for a second PC. The kind in the command
+is the kind of device the code may enroll — a phone code cannot be redeemed as a desktop, which is
+the point.
 
 Type the code it prints into the app (Settings → Pair). The code is single-use and expires; issue a
 new one with the same command if it lapses.

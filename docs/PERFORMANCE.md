@@ -18,16 +18,20 @@ process with psutil.
 
 | Scenario | Result |
 |---|---|
-| 40 sequential chat turns, one device | p50 **5.4 ms**, p95 7.6 ms, p99 10.0 ms → **178 turns/s** |
-| 90 turns, 9 devices in parallel | p50 **37.6 ms**, p95 60.9 ms, p99 65.9 ms → **225 turns/s**, 0 rejections |
+| 40 sequential chat turns, one device | p50 **4.2 ms**, p95 7.6 ms, p99 10.0 ms → **230 turns/s** |
+| 90 turns, 9 devices in parallel | p50 **35.2 ms**, p95 53.4 ms, p99 65.9 ms → **241 turns/s**, 0 rejections |
 | Conversation with 200 stored messages: read all | 4.1 ms |
-| Same conversation: one more turn (10 messages of history) | 5.8 ms |
-| Memory search, 300 facts, 20 queries | p50 **6.0 ms**, p95 8.0 ms |
+| Same conversation: one more turn (10 messages of history) | 4.6 ms |
+| Memory search, 300 facts, 20 queries | p50 **4.9 ms**, p95 8.0 ms |
 | 30 requests with a bad token | 30 × 401, p50 1.9 ms — rejected before any work |
 | 20 identical turns posted at once from one device | 9 × 200, 11 × 429 (the 60-turns-per-minute per-device limit, partly used by earlier scenarios), **18 messages stored, 18 unique ids** — nothing lost, nothing duplicated |
 | 8 agent goals submitted at once | 8/8 succeeded in 0.2 s, 0 left unfinished |
 | Cancel a running agent task | stop acknowledged in 19.9 ms |
-| Server process after the whole run | **RSS 71 MB**, 0.5 % CPU, database 7.1 MB |
+| Server process after the whole run | **RSS 71.5 MB**, 1.0 % CPU, database 7.09 MB |
+
+Re-measured after the V1.0 review added a per-conversation turn lock and body-size middleware;
+the lock serialises turns *within* one conversation and costs nothing measurable across
+conversations (p50 4.2 ms sequential, 35.2 ms at nine devices).
 
 Reading these honestly:
 

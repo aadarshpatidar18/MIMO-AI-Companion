@@ -54,7 +54,7 @@ Open <http://127.0.0.1:8000>. MIMO's interface appears; it is the same page on y
 2. On the PC, allow the port once:
    `New-NetFirewallRule -DisplayName "MIMO" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow`
 3. Restart the backend with `--host 0.0.0.0` so the phone can reach it.
-4. On the PC: `python -m backend.main pair` → an 8-character code.
+4. On the PC: `python -m backend.main pair android` (or `desktop`) → an 8-character code.
 5. On the phone (same Wi-Fi): open `http://192.168.1.20:8000`, type the **code** into the pairing
    field, give the device a name, press Connect.
 

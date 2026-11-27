@@ -1,275 +1,184 @@
-# MIMO – Personal AI Companion
+# MIMO — a personal AI operating system
 
-**MIMO** is a personal AI companion designed to bring together conversational AI, persistent memory, and Android integration.
+MIMO runs on your own computer, remembers what matters to you, and can act — on files, applications,
+a browser, a Windows desktop and an Android phone — with your permission. It is not a chatbot with
+extras: the backend is a small operating layer (models, memory, tools, approvals, devices) and this
+repository contains three ways to talk to it: the browser interface, a Windows desktop shell, and an
+Android app.
 
-The project combines a locally running Large Language Model (LLM), a Python-based backend, SQLite memory storage, and an Android application built using Kotlin and Jetpack Compose.
-
-The long-term vision is to develop MIMO into an intelligent personal assistant capable of understanding user context, remembering preferences, planning tasks, and interacting with Android applications with appropriate user authorization.
-
----
-
-## Current Features
-
-- **One interface, every screen:** a responsive web app served by the backend at `/`. Chat,
-  history, memory, devices, agent activity and settings on the laptop and in a phone browser.
-- **MIMO's character:** name, warmth, humour and verbosity are yours to set, and the same settings
-  shape every answer (`backend/core/persona.py`).
-- **Provider-independent models:** Ollama locally, Gemini in the cloud, with retry, cooldown,
-  fallback, usage tracking and per-task routing. Personal memory stays on the machine unless you
-  opt in.
-- **Durable, shared conversations:** SQLite-backed history that survives a restart and is readable
-  from every paired device.
-- **Device identity:** pairing codes, hashed bearer tokens, per-device scopes, revocation and an
-  audit trail.
-- **Agent engine:** plan → policy → execute → verify → replan, with autonomy levels, background
-  tasks, cancellation, confirmations, timeouts and restart recovery.
-- **Persistent memory:** interests, skills, goals, preferences and projects, searchable, editable
-  and deletable from the app.
-- **Operators:** file management inside a sandbox, approved PowerShell, allowlisted dev commands,
-  application launch/close, screenshots and OCR, mouse and keyboard, and a real Playwright browser
-  that searches, reads and — with your approval — clicks (`docs/OPERATORS.md`).
-- **Voice:** speak to MIMO and have it answer aloud in the browser interface; local whisper is the
-  planned upgrade.
-- **Android client:** Kotlin/Compose chat app (chat only for now).
-
-Setup: `docs/INSTALL.md`. Interface: `docs/UI.md`. Operators: `docs/OPERATORS.md`.
-
-## System Architecture
-
-```text
-                 ANDROID APPLICATION
-                 Kotlin + Jetpack Compose
-                          |
-                          |
-                     HTTP / JSON
-                          |
-                          v
-                    FASTAPI BACKEND
-                          |
-                          v
-                     MIMO AGENT
-                          |
-             +------------+------------+
-             |            |            |
-             v            v            v
-          LLM ENGINE    MEMORY       TOOLS
-             |            |            |
-             v            v            v
-          Ollama       SQLite      Tool Registry
-             |
-             v
-        Qwen 2.5 1.5B
-```
-
-### Technology Stack
-
-| Component | Technology |
-|---|---|
-| Android Application | Kotlin |
-| UI Framework | Jetpack Compose |
-| Backend | Python |
-| API Framework | FastAPI |
-| LLM Runtime | Ollama |
-| Language Model | Qwen 2.5 1.5B |
-| Database | SQLite |
-| Communication | HTTP / JSON |
-| Version Control | Git / GitHub |
-
-## Project Structure
-
-```text
-MIMO/
-│
-├── android/
-│   ├── app/
-│   │   └── src/
-│   │       └── main/
-│   │           ├── java/
-│   │           │   └── com/mimo/companion/
-│   │           │       ├── MainActivity.kt
-│   │           │       └── ui/theme/
-│   │           └── AndroidManifest.xml
-│   │
-│   └── gradle/
-│
-├── backend/
-│   ├── main.py
-│   ├── api.py
-│   ├── llm.py
-│   ├── planner.py
-│   ├── agent.py
-│   ├── tools.py
-│   ├── memory.py
-│   ├── database.py
-│   └── cleanup.py
-│
-├── requirements.txt
-├── README.md
-└── .gitignore
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10 or later
-- Android Studio
-- Android SDK
-- Ollama
-- Git
-- Java Development Kit compatible with the Android Gradle project
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/aadarshpatidar18/MIMO-AI-Companion.git
-cd MIMO-AI-Companion
-```
-
-### 2. Set Up Python Environment
-
-```bash
-python -m venv venv
-```
-
-Activate the environment on Windows Git Bash:
-
-```bash
-source venv/Scripts/activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Set Up Local LLM
-
-Install Ollama and download the model:
-
-```bash
-ollama pull qwen2.5:1.5b
-```
-
-Make sure Ollama is running locally.
-
-### 4. Start the Backend
-
-From the project root:
-
-```bash
-uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Backend health check:
-
-```text
-http://127.0.0.1:8000/health
-```
-
-API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-### 5. Run the Android Application
-
-1. Open the `android` directory in Android Studio.
-2. Allow Gradle synchronization to finish.
-3. Connect an Android device or start an emulator.
-4. Configure the backend address in the Android API service.
-5. Build and run the application.
-
-For an Android Studio emulator, the host machine is generally accessible through:
-
-```text
-http://10.0.2.2:8000
-```
-
-For a physical Android device, use your development machine's local network IP address. Both devices must be connected to an accessible network.
-
-**Note:** The current development configuration uses HTTP. Do not expose the development backend publicly. Production deployment requires authentication, secure communication, and appropriate access controls.
-
-## Model Providers
-
-MIMO routes every model call through `backend/core/llm`. By default it runs fully offline on Ollama.
-To enable Google Gemini (optional), copy `.env.example` to `.env`, set `GEMINI_API_KEY`, then choose
-`auto` or `gemini` via `PUT /llm/selection`. Gemini failures and rate limits fall back to Ollama
-automatically. Personal memories are never sent to a cloud model unless `MIMO_ALLOW_MEMORY_TO_CLOUD=true`.
-See `docs/MODEL_ROUTING.md` and `docs/AUDIT.md`.
-
-## The interface
-
-Start the backend and open <http://127.0.0.1:8000> — MIMO's own interface, the same one on your
-laptop and your phone browser. Chat, conversation history, memory, devices and permissions, agent
-activity with a Stop button, and MIMO's character (name, warmth, humour, how much it says) all live
-there. Pairing happens in the app: `python -m backend.main pair` on the PC prints a code, you type it
-once on the phone, and both devices share one history from then on.
-
-`docs/UI.md` describes the screens and what is wired to what.
-
-## Devices, identity and shared conversations
-
-MIMO is one brain for several screens. A device pairs once with a short code shown on the PC,
-receives a bearer token (only its SHA-256 hash is stored), and from then on reads and writes the
-same conversations as every other device.
-
-```bash
-python -m backend.main pair       # prints a code on the PC (backend must be running)
-python -m backend.main devices    # what is paired, and when each was last seen
-```
-
-`POST /chat` with a `conversation_id` uses the shared, durable history; without one it keeps the
-older in-memory behaviour. Full endpoint and scope reference: `docs/DEVICES_AND_CONVERSATIONS.md`.
-Set `MIMO_REQUIRE_AUTH=1` once your PC is paired to require a token on every route.
-
-Run the tests: `pip install -r requirements-dev.txt && pytest`.
-Terminal chat: `python -m backend.main` (from the project root).
-
-## Development Roadmap
-
-| Feature | Status |
-|---|---|
-| Python backend | Completed |
-| FastAPI integration | Completed |
-| Local LLM integration | Completed |
-| SQLite persistent memory | Completed |
-| Basic tool execution | Completed |
-| Android chat interface | Completed |
-| Android-backend communication | Completed prototype |
-| Conversation history improvements | Planned |
-| Voice interaction | Planned |
-| Text-to-Speech | Planned |
-| Virtual pet interface | Planned |
-| Advanced memory and personalization | Planned |
-| Android app interaction | Planned |
-| Screen understanding and OCR | Planned |
-| Agent planning and task verification | Planned |
-| Production security and deployment | Planned |
-
-## Project Vision
-
-MIMO is being developed as a learning-by-building project exploring the intersection of:
-
-- Artificial Intelligence
-- Agentic AI
-- Large Language Models
-- Android Development
-- Human-Computer Interaction
-- Persistent Memory Systems
-- Robotics-inspired autonomous systems
-
-The ultimate goal is to build an AI companion that can understand context, remember information, reason about tasks, and assist users across their digital environment.
-
-## Author
-
-**Aadarsh Patidar**
-
-Materials Science and Metallurgical Engineering  
-Indian Institute of Technology Hyderabad
+Nothing leaves your machine unless you choose a cloud model. Conversations, memory and device
+tokens live in SQLite files in `data/`.
 
 ---
 
-*Built with curiosity, experimentation, and a passion for intelligent systems.*
+## What it can do
+
+- **Talk and remember.** Chat with a local model (Ollama) or a cloud one (Gemini). Facts you tell it
+  — preferences, projects, people — are stored with an importance score and recalled by relevance,
+  not by keyword alone. You can correct or forget any fact from any device.
+- **Plan and act.** An agent engine turns a goal into steps, checks each step against a permission
+  policy, runs it, verifies the result and replans once if it fails. Six specialists (Research,
+  Coding, Computer, Files, Browser, Memory) plus a generalist each get their own tool set.
+- **Operate the computer.** Files inside a sandbox, an allowlisted PowerShell runner, application
+  launch/close, screenshots with OCR, mouse and keyboard, and a real Playwright browser.
+- **Operate the phone.** An Android app with an accessibility-based operator: it reads the screen
+  you are looking at, taps elements by name, types, scrolls — and re-reads the screen afterwards to
+  check it actually worked. Everything needs a permission you grant, and you can revoke it.
+- **Speak and listen.** Local Whisper for speech in and Kokoro for speech out on the PC; the phone
+  and browser use their own engines.
+- **Work from three devices at once.** The PC, the desktop app and the phone share one conversation
+  history and one memory. A message sent on the phone appears on the laptop.
+
+## Architecture
+
+```
+      Android app (Kotlin/Compose)   Desktop (PySide6)   Browser app
+                    \                     |                 /
+                     \--------- HTTP/JSON + bearer token -/
+                                        |
+                          FastAPI  (backend/api.py)
+                                        |
+     +-------------+-------------+-------------+--------------+
+     |             |             |             |              |
+  /chat        /agent/*      /memory       /voice/*      /conversations
+  intent +     plan →        SQLite +       Whisper +     shared history,
+  model call   policy →      FTS5, ranked   Kokoro        device-tagged
+               execute →     recall
+               verify
+     |             |             |             |
+  ModelRouter   ToolRegistry  memory.db     models on disk
+  Ollama/Gemini 36 tools
+```
+
+Every client is a thin layer over the same REST API. There is no second implementation of memory,
+policy or conversation storage in any client — that is what keeps three interfaces honest with each
+other.
+
+## Technology
+
+Python 3.11+ · FastAPI · SQLite (WAL) with FTS5 · Ollama and Gemini providers behind one router ·
+faster-whisper (CTranslate2) and Kokoro-ONNX for voice · Playwright for the browser ·
+Kotlin + Jetpack Compose + Room + OkHttp for Android · PySide6 for the desktop shell ·
+pytest, a load harness and JVM unit tests for verification.
+
+## Installation
+
+**Windows (recommended):** see [`docs/INSTALL_WINDOWS.md`](docs/INSTALL_WINDOWS.md).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\windows\install.ps1 -WithVoice -WithDesktop
+```
+
+**Linux / macOS / development:**
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+uvicorn backend.api:app --host 0.0.0.0 --port 8000
+```
+
+Open <http://127.0.0.1:8000>. Full details, including optional extras and the reverse-proxy note,
+are in [`docs/INSTALL.md`](docs/INSTALL.md).
+
+## Configuration
+
+Configuration is environment variables in `.env` at the repository root (never committed) plus
+`config/*.json` for model routing and application aliases.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `GEMINI_API_KEY` | Cloud model key, optional | unset (local only) |
+| `MIMO_LLM_PROVIDER` | `ollama`, `gemini` or `auto` | `auto` |
+| `MIMO_OLLAMA_URL` | Where Ollama listens | `http://127.0.0.1:11434` |
+| `MIMO_OLLAMA_MODEL` | Local model name | `qwen2.5:1.5b` |
+| `MIMO_REQUIRE_AUTH` | Refuse unpaired callers on every route | unset |
+| `MIMO_DATA_DIR` | Where the SQLite files live | `./data` |
+| `MIMO_ALLOW_MEMORY_TO_CLOUD` | Let memory text reach a cloud model | unset |
+| `MIMO_CORS_ORIGINS` | Extra browser origins | localhost only |
+
+Voice settings live in `~/.mimo/voice.json` and can be changed from the API; see
+[`docs/VOICE.md`](docs/VOICE.md).
+
+## Running it on Windows
+
+- **Backend:** `scripts\windows\start-mimo.ps1` starts uvicorn, waits for `/health`, prints the LAN
+  address for your phone, and opens the browser. `stop-mimo.ps1` stops it.
+- **Desktop shell:** `python desktop\run.py`, or the *MIMO Desktop* shortcut if you installed with
+  `-WithDesktop`.
+- **Emergency stop** is the red button in the desktop toolbar; on the phone it is *Stop all* on the
+  Activity screen. Both cancel every queued or running task on the backend.
+
+## Android
+
+Build: `cd android && ./gradlew :app:assembleDebug` (see
+[`docs/ANDROID_OPERATOR.md`](docs/ANDROID_OPERATOR.md) for signing and a 17-step verification
+checklist). Install the APK, open Settings, enter `http://<PC-LAN-IP>:8000`, pair with the code from
+`python -m backend.main pair android` (the kind is part of the code), then grant notifications.
+Accessibility and screen capture are
+optional and off until you turn them on.
+
+## Local AI models
+
+Local is the default. Install [Ollama](https://ollama.com) and pull a model:
+
+```bash
+ollama pull qwen3:4b        # ~2.5 GB, the documented default for a 16 GB laptop
+ollama pull qwen3:1.7b      # smaller, for a machine that is also running a browser
+```
+
+Routing, fallback and per-task model choice are in [`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md).
+The phone never runs a model of its own; it talks to the PC.
+
+## Voice
+
+```bash
+pip install faster-whisper kokoro-onnx numpy
+```
+
+Whisper downloads its model on first use; the two Kokoro files go in `~/.mimo/models`. Measured on a
+4-core machine: speech in at 0.45× real time, first spoken chunk 0.4 s warm, ~1.25 GB resident for
+both. Numbers and the memory trade-offs are in [`docs/VOICE.md`](docs/VOICE.md).
+
+## Security and permissions
+
+- Devices are paired with a single-use, expiring code; each device gets a hashed bearer token with
+  its own scopes. Revoking a device takes effect on its next request.
+- The agent's tools are gated by a policy: levels 1–2 can be automatic, level 3 always needs your
+  confirmation, and a device without a scope cannot invoke the tool at all.
+- The phone's operator only works while you have enabled the accessibility service, and every action
+  is verified by re-reading the screen.
+- Files are confined to a sandbox; PowerShell runs an allowlist, not arbitrary command lines.
+
+Details, including what is intentionally *not* protected, are in [`docs/SECURITY.md`](docs/SECURITY.md).
+
+## Project layout
+
+```
+backend/          FastAPI app, agent engine, memory, security, tools, voice
+android/          Kotlin/Compose app (the phone operator)
+desktop/          PySide6 desktop shell
+config/           model routing, application aliases (.example files)
+scripts/          install/start/stop (windows/), load harness, voice benchmark, evals
+docs/             architecture, operators, security, API reference, per-module notes
+```
+
+## Known limitations
+
+- Nothing in this repository has been run on a physical Windows machine or a physical phone by the
+  person who built it; every hardware step is a checklist, not a claim. See
+  [`docs/V1_STATUS.md`](docs/V1_STATUS.md) for exactly what is verified and what is not.
+- The browser operator and the Windows operators are tested on Linux and through mocks; Windows
+  behaviour is unverified.
+- One backend process, one SQLite database: right for one person, not for a team.
+- The phone polls for task updates every 20 s rather than using push notifications.
+- Local models need RAM; the voice models need about 1.25 GB resident.
+
+## Docs
+
+[Architecture](docs/ARCHITECTURE.md) · [Install (Linux/macOS)](docs/INSTALL.md) ·
+[Install (Windows)](docs/INSTALL_WINDOWS.md) · [Android](docs/ANDROID_OPERATOR.md) ·
+[Desktop](docs/DESKTOP.md) · [Voice](docs/VOICE.md) · [Operators](docs/OPERATORS.md) ·
+[Agent engine](docs/AGENT_ENGINE.md) · [Memory](docs/MEMORY.md) · [Roster](docs/ROSTER.md) ·
+[Model routing](docs/MODEL_ROUTING.md) · [API reference](docs/API_REFERENCE.md) ·
+[Security](docs/SECURITY.md) · [Performance](docs/PERFORMANCE.md) ·
+[Troubleshooting](docs/TROUBLESHOOTING.md) · [V1 status](docs/V1_STATUS.md)

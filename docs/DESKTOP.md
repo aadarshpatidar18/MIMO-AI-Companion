@@ -16,7 +16,8 @@ cd path\to\MIMO
 Or install with the desktop shortcut in one step: `scripts\windows\install.ps1 -WithDesktop`.
 
 First run: **Settings → MIMO address** (default `http://127.0.0.1:8000`) → **Pair** with a code from
-`python -m backend.main pair`. The token is written to `%USERPROFILE%\.mimo\desktop.json` with
+`python -m backend.main pair desktop` (the kind matters: a code issued for `android` will be
+refused by this app). The token is written to `%USERPROFILE%\.mimo\desktop.json` with
 owner-only permissions.
 
 ## What is in the window
