@@ -1,0 +1,24 @@
+{
+  "messages": [
+    {
+      "id": 1,
+      "conversation_id": "a1766373011e",
+      "role": "user",
+      "content": "hello",
+      "created_at": 1795780922.2917008,
+      "device_id": "877ee5cf3fe1",
+      "meta": null
+    },
+    {
+      "id": 2,
+      "conversation_id": "a1766373011e",
+      "role": "assistant",
+      "content": "a fake answer",
+      "created_at": 1795780922.2917008,
+      "device_id": "877ee5cf3fe1",
+      "meta": null
+    }
+  ],
+  "count": 2,
+  "next_after_id": 2
+}

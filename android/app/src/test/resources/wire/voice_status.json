@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "stt_provider": "local",
+  "stt_engine": "faster-whisper",
+  "stt_available": true,
+  "stt_detail": "Ready.",
+  "tts_provider": "local",
+  "tts_engine": "kokoro-onnx",
+  "tts_available": true,
+  "tts_detail": "Ready.",
+  "allow_cloud": false,
+  "model_dir": "/home/user/.mimo/models"
+}

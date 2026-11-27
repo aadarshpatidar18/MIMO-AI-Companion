@@ -24,10 +24,13 @@ data class DeviceDto(
     val name: String = "",
     val kind: String = "",
     val scopes: List<String> = emptyList(),
-    @SerialName("last_seen") val lastSeen: String? = null,
-    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("last_seen") val lastSeenRaw: JsonElement? = null,
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null,
     val revoked: Int = 0
-)
+) {
+    val lastSeen: String? get() = lastSeenRaw.toIsoInstant()
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+}
 
 @Serializable
 data class PairRequest(
@@ -56,13 +59,16 @@ data class AuthStatus(
 data class ConversationDto(
     val id: String,
     val title: String = "",
-    @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null,
+    @SerialName("updated_at") val updatedAtRaw: JsonElement? = null,
     @SerialName("device_id") val deviceId: String? = null,
     val archived: Int = 0,
     @SerialName("message_count") val messageCount: Int = 0,
     @SerialName("last_message") val lastMessage: String? = null
-)
+) {
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+    val updatedAt: String? get() = updatedAtRaw.toIsoInstant()
+}
 
 @Serializable
 data class ConversationsResponse(
@@ -76,9 +82,11 @@ data class MessageDto(
     @SerialName("conversation_id") val conversationId: String,
     val role: String,
     val content: String,
-    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null,
     @SerialName("device_id") val deviceId: String? = null
-)
+) {
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+}
 
 @Serializable
 data class MessagesResponse(
@@ -106,8 +114,10 @@ data class ChatResponse(
     @SerialName("device_id") val deviceId: String? = null,
     @SerialName("user_message_id") val userMessageId: Long? = null,
     @SerialName("assistant_message_id") val assistantMessageId: Long? = null,
-    @SerialName("created_at") val createdAt: String? = null
-)
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null
+) {
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+}
 
 @Serializable
 data class MemoryDto(
@@ -116,9 +126,12 @@ data class MemoryDto(
     val category: String = "",
     val importance: Int = 3,
     @SerialName("access_count") val accessCount: Int = 0,
-    @SerialName("last_used") val lastUsed: String? = null,
-    @SerialName("created_at") val createdAt: String? = null
-)
+    @SerialName("last_used") val lastUsedRaw: JsonElement? = null,
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null
+) {
+    val lastUsed: String? get() = lastUsedRaw.toIsoInstant()
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+}
 
 @Serializable
 data class MemoryResponse(val memories: List<MemoryDto> = emptyList(), val count: Int = 0)
@@ -143,14 +156,17 @@ data class AgentTaskDto(
     val goal: String = "",
     val agent: String? = null,
     @SerialName("agent_key") val agentKey: String? = null,
-    @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("finished_at") val finishedAt: String? = null,
-    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("created_at") val createdAtRaw: JsonElement? = null,
+    @SerialName("finished_at") val finishedAtRaw: JsonElement? = null,
+    @SerialName("started_at") val startedAtRaw: JsonElement? = null,
     val error: JsonElement? = null,
     val result: JsonElement? = null,
     val pending: JsonElement? = null,
     val steps: JsonElement? = null
 ) {
+    val createdAt: String? get() = createdAtRaw.toIsoInstant()
+    val finishedAt: String? get() = finishedAtRaw.toIsoInstant()
+
     /** `pending` is a confirmation request when the engine is waiting on the user. */
     val needsApproval: Boolean
         get() = status == "awaiting_confirmation" || status == "waiting_confirmation" ||

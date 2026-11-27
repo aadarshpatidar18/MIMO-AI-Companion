@@ -1,0 +1,15 @@
+{
+  "conversations": [
+    {
+      "id": "a1766373011e",
+      "title": "Wire",
+      "created_at": 1795780922.2734437,
+      "updated_at": 1795780922.2917008,
+      "device_origin": "877ee5cf3fe1",
+      "archived": 0,
+      "message_count": 2,
+      "last_message": "a fake answer"
+    }
+  ],
+  "count": 1
+}

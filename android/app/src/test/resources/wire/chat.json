@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "session_id": "default",
+  "conversation_id": "a1766373011e",
+  "device_id": "877ee5cf3fe1",
+  "intent": "general_question",
+  "response": "a fake answer",
+  "user_message_id": 1,
+  "assistant_message_id": 2,
+  "created_at": 1795780922.2917008
+}

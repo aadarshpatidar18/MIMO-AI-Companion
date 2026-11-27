@@ -1,0 +1,21 @@
+{
+  "devices": [
+    {
+      "id": "877ee5cf3fe1",
+      "name": "test-pc",
+      "kind": "android",
+      "scopes": [
+        "agent:control",
+        "agent:run",
+        "chat:read",
+        "chat:write",
+        "device:read",
+        "memory:read",
+        "memory:write"
+      ],
+      "created_at": 1795780922.237152,
+      "last_seen": 1795780922.3454278
+    }
+  ],
+  "count": 1
+}

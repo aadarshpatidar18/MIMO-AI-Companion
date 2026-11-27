@@ -1,0 +1,19 @@
+{
+  "tasks": [
+    {
+      "id": "f12dcf7dfbb0",
+      "session_id": "default",
+      "goal": "what time is it",
+      "status": "succeeded",
+      "mode": "answer",
+      "created_at": 1795780922.3130789,
+      "finished_at": 1795780922.3359208,
+      "answer": "a fake answer",
+      "error": null,
+      "plan": [],
+      "steps": null,
+      "pending": null,
+      "agent": "general"
+    }
+  ]
+}

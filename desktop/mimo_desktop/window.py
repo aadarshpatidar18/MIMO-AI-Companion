@@ -7,6 +7,7 @@ what the desktop shows after a refresh.
 from __future__ import annotations
 
 import html
+from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
@@ -24,6 +25,26 @@ from .worker import run_async
 RUNNING = ("queued", "running", "planning")
 ACTIVE_POLL_MS = 3_000
 IDLE_POLL_MS = 20_000
+
+
+def stamp(value) -> str:
+    """MIMO sends epoch seconds (a JSON number) for every timestamp; some fields are ISO text.
+
+    Slicing a float crashed the task table before this helper existed, which is why the format is
+    handled in one place instead of at each call site.
+    """
+    if value is None or value == "":
+        return ""
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value)).strftime("%Y-%m-%d %H:%M")
+        except (OverflowError, OSError, ValueError):
+            return ""
+    text = str(value)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return text[:19]
 
 
 class MainWindow(QMainWindow):
@@ -329,7 +350,7 @@ class MainWindow(QMainWindow):
                 task.get("agent_key") or task.get("agent") or "generalist"))
             status = task.get("status", "")
             self.task_table.setItem(row, 2, QTableWidgetItem(status.replace("_", " ")))
-            self.task_table.setItem(row, 3, QTableWidgetItem((task.get("created_at") or "")[:19]))
+            self.task_table.setItem(row, 3, QTableWidgetItem(stamp(task.get("created_at"))))
             if status in RUNNING or task.get("pending"):
                 actions = QWidget()
                 box = QHBoxLayout(actions)
@@ -473,7 +494,7 @@ class MainWindow(QMainWindow):
                 self.device_table.setItem(row, 2, QTableWidgetItem(
                     ", ".join(device.get("scopes", []) or [])))
                 self.device_table.setItem(row, 3, QTableWidgetItem(
-                    (device.get("last_seen") or "")[:19]))
+                    stamp(device.get("last_seen"))))
                 if not device.get("revoked"):
                     revoke = QPushButton("Revoke")
                     revoke.clicked.connect(lambda _, d=device["id"]: self.revoke_device(d))

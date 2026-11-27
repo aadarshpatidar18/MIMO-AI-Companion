@@ -155,3 +155,28 @@ def test_the_window_builds_every_screen(server, tmp_path, monkeypatch):
     assert window.transcript.count() == 2
     assert window.stop_button.text() == "Emergency stop"
     window.close()
+
+
+def test_the_task_table_renders_epoch_timestamps(server, tmp_path):
+    """MIMO sends epoch seconds as JSON numbers; slicing one as a string used to crash the table."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from mimo_desktop.settings import DesktopSettings
+    from mimo_desktop.window import MainWindow, stamp
+
+    assert stamp(1795780817.3061597).startswith("20")
+    assert stamp(None) == ""
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(DesktopSettings(base_url=server), MimoApi(server))
+    window.render_tasks([
+        {"id": "abc", "goal": "a goal", "agent": "general", "status": "succeeded",
+         "created_at": 1795780817.3061597, "finished_at": 1795780817.337044, "pending": None},
+        {"id": "def", "goal": "paused", "agent": "general", "status": "awaiting_confirmation",
+         "created_at": 1795780818.0, "pending": {"index": 2, "tool": "delete_path"}},
+    ])
+    assert window.task_table.rowCount() == 2
+    assert window.task_table.item(0, 3).text() != ""
+    window.load_devices()
+    window.close()
