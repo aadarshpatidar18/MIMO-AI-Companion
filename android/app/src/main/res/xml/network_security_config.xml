@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MIMO's backend runs on the user's own PC, on their own network, on plain HTTP by default. The app
+  therefore permits cleartext, and the guard that matters lives in SettingsRepository: an http://
+  address is only accepted when its host is loopback or a private LAN address, so a mistyped public
+  host cannot quietly send a device token across the internet in the clear.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

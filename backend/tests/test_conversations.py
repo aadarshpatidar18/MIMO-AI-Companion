@@ -252,3 +252,26 @@ def test_conversation_message_length_is_enforced_by_the_api(app_env):
     r = client.post(f"/conversations/{cid}/messages", json={"content": "x" * (CONTENT_MAX + 1)},
                     headers=auth(token))
     assert r.status_code == 422
+
+
+def test_chat_returns_the_ids_it_stored(app_env):
+    """A client that posts a turn must learn the ids of both rows it created.
+
+    Without them an app can only re-read the whole conversation and guess which of the new
+    messages is its own — which is how duplicate turns appear after a reconnect.
+    """
+    client, *_ = app_env
+    _, token = seed_device("android")
+    cid = client.post("/conversations", json={}, headers=auth(token)).json()["id"]
+
+    body = client.post("/chat", json={"message": "hello mimo", "conversation_id": cid},
+                       headers=auth(token)).json()
+    assert isinstance(body["user_message_id"], int)
+    assert isinstance(body["assistant_message_id"], int)
+    assert body["assistant_message_id"] > body["user_message_id"]
+    assert body["created_at"]
+
+    messages = client.get(f"/conversations/{cid}/messages", headers=auth(token)).json()["messages"]
+    ids = [m["id"] for m in messages]
+    assert body["user_message_id"] in ids and body["assistant_message_id"] in ids
+    assert messages[-1]["role"] == "assistant"

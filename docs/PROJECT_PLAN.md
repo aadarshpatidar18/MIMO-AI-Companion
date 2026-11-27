@@ -119,6 +119,20 @@ Android. Everything else in the list now exists and is tested.
 - The dashboard shows importance, recall count and a Correct button per fact.
 - `docs/MEMORY.md`. 307 tests.
 
+## 6f. Android operator — built (2026-11-27)
+
+- The chat-only client is replaced by a full application: Room persistence, pairing and device
+  identity, offline queue with ordered retry, connection monitoring with backoff, notifications for
+  finished tasks and approvals, an accessibility-based operator with verified actions, on-device
+  OCR, and the five screens (chat, memory, activity, operator, settings).
+- Backend: `POST /chat` now also returns the ids it stored for both rows of a turn, so a phone can
+  reconcile its own optimistic message instead of guessing. Additive; nothing removed or renamed.
+- Verified here: debug and release APKs build, 12 JVM unit tests pass, backend suite 303 passed /
+  1 skipped. **Not verified: any runtime behaviour on a phone.** The checklist for the Galaxy A27
+  is in `docs/ANDROID_OPERATOR.md`.
+- Still missing from the original list: local voice (Module B), the PySide6 desktop shell
+  (Module C), measured load/performance testing (Module D), and the Windows installer (Module E).
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a

@@ -324,7 +324,13 @@ def chat(request: ChatRequest, http_request: Request):
             "conversation_id": request.conversation_id,
             "device_id": device["id"],
             "intent": intent,
-            "response": response
+            "response": response,
+            # The ids the store just assigned to both rows. Clients need them to reconcile their
+            # own optimistic copy of this turn without pulling the whole conversation and guessing
+            # which message is which.
+            "user_message_id": stored[0],
+            "assistant_message_id": stored[1],
+            "created_at": (conversations.get(request.conversation_id) or {}).get("updated_at")
         }
 
     try:
