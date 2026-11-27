@@ -155,6 +155,16 @@ Android. Everything else in the list now exists and is tested.
 - `backend/tests/test_resilience.py`: total provider outage → 503 with nothing stored, then
   recovery; one device's rate limit cannot lock another out; history survives a store restart.
 
+## 6i. Windows packaging (2026-11-27)
+
+- `scripts/windows/`: `install.ps1` (per-user venv, deps, `.env`, Start Menu + Desktop shortcuts,
+  optional logon Scheduled Task, optional voice), `start-mimo.ps1` (waits for `/health`, prints the
+  LAN address, writes a pid file), `stop-mimo.ps1`, `uninstall.ps1` (with `-KeepData`).
+- `docs/INSTALL_WINDOWS.md`: prerequisites, switches, pairing, voice model download, APK build and
+  signing with env-var keys, uninstall, and a symptom→cause→fix table.
+- **Written, not executed**: no Windows machine here. The scripts are reviewed but the first run
+  is the test; this is stated in the doc and in the release notes.
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a
