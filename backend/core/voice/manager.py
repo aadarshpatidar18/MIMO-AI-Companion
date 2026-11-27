@@ -80,6 +80,7 @@ class VoiceManager:
             device=settings.stt_device,
             model_dir=str(settings.models_dir()),
             beam_size=settings.stt_beam_size,
+            cpu_threads=settings.stt_cpu_threads,
         )
         if not engine.is_available():
             return NullSTT(
@@ -128,6 +129,19 @@ class VoiceManager:
         if isinstance(engine, NullTTS):
             raise VoiceUnavailable(engine.reason)
         return engine.stream(text, speed=speed if speed is not None else self.settings.tts_speed)
+
+    def unload(self) -> dict:
+        """Drop the loaded models and give the memory back.
+
+        Voice models stay resident because loading them costs seconds; on a machine that is short
+        of RAM the owner should be able to say "not now" without restarting the backend.
+        """
+        had = {"stt": self._stt is not None, "tts": self._tts is not None}
+        self._stt = None
+        self._tts = None
+        self._tts_engine_obj = None
+        gc.collect()
+        return {"unloaded": had}
 
     def cancel_speech(self) -> bool:
         """Stops the next chunk. Returns False when nothing was being synthesised."""

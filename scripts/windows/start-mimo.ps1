@@ -61,6 +61,12 @@ if (Test-Path $pidFile) {
 
 if (-not $Port) { $Port = [int](Read-EnvValue 'MIMO_PORT' '8000') }
 $hostAddress = Read-EnvValue 'MIMO_HOST' '0.0.0.0'
+$requireAuth = Read-EnvValue 'MIMO_REQUIRE_AUTH' '0'
+if ($hostAddress -ne '127.0.0.1' -and $hostAddress -ne 'localhost' -and $requireAuth -ne '1') {
+    Write-Host 'Refusing to start: MIMO would be reachable from your network without device authentication.' -ForegroundColor Red
+    Write-Host '  Either set MIMO_REQUIRE_AUTH=1 in .env (recommended), or MIMO_HOST=127.0.0.1 for this PC only.' -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host "Starting MIMO on ${hostAddress}:${Port}…" -ForegroundColor Cyan
 $arguments = @('-m', 'uvicorn', 'backend.api:app', '--host', $hostAddress, '--port', "$Port")

@@ -163,8 +163,13 @@ class MimoApi:
     def cancel_task(self, task_id: str) -> dict:
         return self._request("POST", f"/agent/tasks/{task_id}/cancel")
 
-    def confirm_task(self, task_id: str, approve: bool) -> dict:
-        return self._request("POST", f"/agent/tasks/{task_id}/confirm", {"approve": approve})
+    def confirm_task(self, task_id: str, approve: bool,
+                     step_index: Optional[int] = None) -> dict:
+        """Answer a paused step. Naming the step means a stale button cannot approve a newer one."""
+        body: dict = {"approve": approve}
+        if step_index is not None:
+            body["step_index"] = step_index
+        return self._request("POST", f"/agent/tasks/{task_id}/confirm", body)
 
     def stop_everything(self) -> dict:
         """Emergency stop: cancel every task that is still running, and say what was stopped."""

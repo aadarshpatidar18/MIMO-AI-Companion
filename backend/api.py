@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -13,6 +14,7 @@ from .core.agent import get_manager, shutdown_manager
 from .core.agent.routes import router as agent_router
 from .core.conversations import CONTENT_MAX, get_store as get_conversations, shutdown_store
 from .core.conversations_routes import router as conversations_router
+from .core.limits import MAX_AUDIO_BYTES, MAX_JSON_BYTES, MAX_UPLOAD_BYTES, BodySizeLimit
 from .core.llm import AllProvidersFailedError
 from .core.llm.routes import router as llm_router
 from .core.persona_routes import INDEX as WEB_INDEX
@@ -39,8 +41,36 @@ from .memory import (
 logger = logging.getLogger("mimo.api")
 
 
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _guard_lan_exposure() -> None:
+    """Refuse to expose an unauthenticated API to the network.
+
+    The backend is a personal server, and the whole product assumes it: a LAN-reachable MIMO with
+    authentication off lets anyone on the Wi-Fi drive the agent. Binding to a non-loopback address
+    therefore requires authentication, unless the operator explicitly says they know.
+    """
+    host = (os.environ.get("MIMO_HOST") or "").strip()
+    if not host or host in LOOPBACK_HOSTS:
+        return
+    if os.environ.get("MIMO_REQUIRE_AUTH", "").strip() in ("1", "true", "yes", "on"):
+        return
+    if os.environ.get("MIMO_ALLOW_OPEN_LAN", "").strip() in ("1", "true", "yes", "on"):
+        logger.warning("MIMO is listening on %s without authentication because "
+                       "MIMO_ALLOW_OPEN_LAN is set. Anyone on this network can use it.", host)
+        return
+    raise RuntimeError(
+        f"MIMO_HOST is {host}, so MIMO would be reachable from your network, but "
+        "MIMO_REQUIRE_AUTH is off. Set MIMO_REQUIRE_AUTH=1 (pair each device first), or set "
+        "MIMO_HOST=127.0.0.1 for this PC only, or set MIMO_ALLOW_OPEN_LAN=1 if you really mean "
+        "to run it open on this network."
+    )
+
+
 @asynccontextmanager
 async def lifespan(_app):
+    _guard_lan_exposure()
     initialize_memory()
     get_manager()          # opens the agent DB and marks tasks interrupted by a restart
     init_security()
@@ -79,10 +109,32 @@ app.add_middleware(
 
 # Added after the CORS layer so a rejected request still gets CORS headers.
 app.add_middleware(AuthGate)
+# Outermost of the stack: an oversized body is refused before authentication or parsing costs
+# anything. The voice route gets its own, larger budget.
+app.add_middleware(
+    BodySizeLimit,
+    default=MAX_JSON_BYTES,
+    rules=(("/voice/transcribe", MAX_AUDIO_BYTES + 1024 * 1024),),
+)
 
 chat_limiter = SlidingWindowLimiter(limit=60, window_s=60.0)
 
 conversation_history = {}
+
+# One lock per conversation, so two devices talking at once cannot both read the same history and
+# then append out of order (which reads as the model answering a message it never saw). Locks are
+# kept for the life of the process — bounded by the number of conversations, each a few bytes.
+_turn_locks: dict[str, threading.Lock] = {}
+_turn_locks_guard = threading.Lock()
+
+
+def turn_lock(conversation_id: str) -> threading.Lock:
+    with _turn_locks_guard:
+        lock = _turn_locks.get(conversation_id)
+        if lock is None:
+            lock = threading.Lock()
+            _turn_locks[conversation_id] = lock
+        return lock
 
 
 class ChatRequest(BaseModel):
@@ -301,23 +353,27 @@ def chat(request: ChatRequest, http_request: Request):
                                 detail="A paired device with 'chat:write' is required "
                                        "to use a shared conversation.")
         conversations = get_conversations()
-        if conversations.get(request.conversation_id) is None:
-            raise HTTPException(status_code=404, detail="Unknown conversation.")
-        history = conversations.history(request.conversation_id, limit=10)
-        try:
-            response, intent = process_message(message, session_id, history=history,
-                                               policy=policy)
-        except ActionDenied as denied:
-            raise HTTPException(status_code=403, detail=str(denied)) from None
-        except AllProvidersFailedError:
-            _no_model()
-        except Exception:
-            _internal()
-        try:
-            stored = conversations.append_turn(request.conversation_id, message, response,
-                                               device_id=device["id"])
-        except Exception:
-            _internal()
+        # The whole turn — read history, call the model, append both rows — happens under this
+        # conversation's lock. Existence is checked inside it too, so a delete cannot slip between
+        # the check and the append.
+        with turn_lock(request.conversation_id):
+            if conversations.get(request.conversation_id) is None:
+                raise HTTPException(status_code=404, detail="Unknown conversation.")
+            history = conversations.history(request.conversation_id, limit=10)
+            try:
+                response, intent = process_message(message, session_id, history=history,
+                                                   policy=policy)
+            except ActionDenied as denied:
+                raise HTTPException(status_code=403, detail=str(denied)) from None
+            except AllProvidersFailedError:
+                _no_model()
+            except Exception:
+                _internal()
+            try:
+                stored = conversations.append_turn(request.conversation_id, message, response,
+                                                   device_id=device["id"])
+            except Exception:
+                _internal()
         if stored is None:
             raise HTTPException(status_code=404, detail="Unknown conversation.")
         return {

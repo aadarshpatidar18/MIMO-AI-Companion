@@ -22,6 +22,10 @@
 .PARAMETER WithDesktop
     Also install the PySide6 desktop shell and create a "MIMO Desktop" shortcut.
 
+.PARAMETER LocalOnly
+    Serve this PC only (127.0.0.1). Without it MIMO listens on the LAN so your phone can reach it,
+    which requires device authentication — the installer turns that on for you.
+
 .PARAMETER Autostart
     Start MIMO when you log in (Scheduled Task, current user, no admin rights needed).
 
@@ -34,6 +38,7 @@ param(
     [string]$Python,
     [switch]$WithVoice,
     [switch]$WithDesktop,
+    [switch]$LocalOnly,
     [switch]$Autostart
 )
 
@@ -134,14 +139,20 @@ if (Test-Path $envFile) {
     if (Test-Path $example) { Copy-Item $example $envFile } else {
         New-Item -ItemType File -Path $envFile | Out-Null
     }
+    $listenHost = if ($LocalOnly) { '127.0.0.1' } else { '0.0.0.0' }
+    # A LAN-reachable backend requires device authentication; the backend refuses to start
+    # otherwise. Pairing itself stays open, so a new phone can still enroll.
+    $requireAuth = if ($LocalOnly) { '0' } else { '1' }
     Add-Content -Path $envFile -Value @"
 # Written by install.ps1. Secrets stay in this file; it is never committed.
 # Local model (recommended): install Ollama from https://ollama.com and run:  ollama pull qwen3:4b
 # Cloud model (optional): put a key here and MIMO will use it only when local is unavailable.
 # GEMINI_API_KEY=
 # Listen on the LAN so the phone can reach MIMO. Use 127.0.0.1 for this PC only.
-MIMO_HOST=0.0.0.0
+MIMO_HOST=$listenHost
 MIMO_PORT=$port
+# Every request except pairing and /health needs a paired device token. Required for LAN access.
+MIMO_REQUIRE_AUTH=$requireAuth
 "@
     Write-Ok 'Created .env'
 }

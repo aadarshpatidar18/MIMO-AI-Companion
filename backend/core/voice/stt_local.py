@@ -11,7 +11,7 @@ from typing import Optional
 import wave
 from typing import Union
 
-from .base import AudioInput, Segment, Transcript, VoiceUnavailable
+from .base import AudioFormatError, AudioInput, Segment, Transcript, VoiceUnavailable
 
 TARGET_RATE = 16000
 
@@ -44,7 +44,8 @@ def read_wav(data: Union[bytes, str]) -> tuple["np.ndarray", int]:
             rate = handle.getframerate()
             frames = handle.readframes(handle.getnframes())
     except (wave.Error, OSError, EOFError) as error:
-        raise VoiceUnavailable(
+        # Bad input, not a broken engine: it must not be reported as "voice unavailable".
+        raise AudioFormatError(
             "That audio is not a readable WAV file. Record as 16-bit PCM WAV and retry."
         ) from error
     if width == 2:
@@ -54,7 +55,7 @@ def read_wav(data: Union[bytes, str]) -> tuple["np.ndarray", int]:
     elif width == 4:
         samples = np.frombuffer(frames, dtype="<i4").astype(np.float32) / 2147483648.0
     else:
-        raise VoiceUnavailable(f"Unsupported WAV sample width: {width * 8} bit.")
+        raise AudioFormatError(f"Unsupported WAV sample width: {width * 8} bit.")
     if channels > 1:
         samples = samples.reshape(-1, channels).mean(axis=1)
     if rate != TARGET_RATE and samples.size:
@@ -87,12 +88,13 @@ class WhisperSTT:
 
     def __init__(self, model: str = "small.en", compute_type: str = "int8",
                  device: str = "auto", model_dir: Optional[str] = None,
-                 beam_size: int = 1) -> None:
+                 beam_size: int = 1, cpu_threads: int = 4) -> None:
         self.model_name = model
         self.compute_type = compute_type
         self.requested_device = device
         self.model_dir = model_dir
         self.beam_size = beam_size
+        self.cpu_threads = cpu_threads
         self._model = None
         self._resolved: Optional[tuple[str, str]] = None
         self._load_ms: Optional[float] = None
@@ -149,6 +151,7 @@ class WhisperSTT:
                 compute_type=compute,
                 download_root=download_root,
                 num_workers=1,
+                cpu_threads=self.cpu_threads,
             )
         except Exception as error:      # a missing model, a broken install, no disk
             raise VoiceUnavailable(
@@ -166,12 +169,12 @@ class WhisperSTT:
     # -------------------------------------------------------------- inference
     def transcribe(self, audio: AudioInput, language: Optional[str] = None,
                    vad: bool = True) -> Transcript:
-        model = self._load()
         if not isinstance(audio, bytes) and not Path(audio).exists():
-            raise VoiceUnavailable(f"No audio file at {audio}.")
+            raise AudioFormatError(f"No audio file at {audio}.")
         samples, _ = read_wav(audio)
         if samples.size == 0:
-            raise VoiceUnavailable("The recording was empty.")
+            raise AudioFormatError("The recording was empty.")
+        model = self._load()
         started = time.perf_counter()
         segments, info = model.transcribe(
             samples,

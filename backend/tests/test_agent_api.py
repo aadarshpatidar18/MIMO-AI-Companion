@@ -147,3 +147,23 @@ def test_unplannable_goal_fails_cleanly(env):
     gem.fn = oll.fn = lambda req: "not json at all"
     t = poll(client, submit(client, "x"), {"failed"})
     assert "valid plan" in t["error"]
+
+
+def test_an_approval_names_the_step_it_was_about(env):
+    """A stale tap must not approve whatever happens to be waiting now."""
+    client, gem, oll = env
+    get_registry().register(ToolSpec("danger", "Level 3 action.", Echo, lambda p: f"did:{p.text}", 3))
+    gem.fn = oll.fn = planning("danger", {"text": "now"})
+    tid = submit(client, "risky")
+    task = poll(client, tid, {"awaiting_confirmation"})
+    index = task["pending"]["index"]
+
+    stale = client.post(f"/agent/tasks/{tid}/confirm",
+                        json={"approve": True, "step_index": index + 5})
+    assert stale.status_code == 409
+    assert poll(client, tid, {"awaiting_confirmation"})["pending"]["index"] == index
+
+    ok = client.post(f"/agent/tasks/{tid}/confirm",
+                     json={"approve": True, "step_index": index})
+    assert ok.status_code == 200
+    assert poll(client, tid, {"succeeded"})["answer"] == "did:now"

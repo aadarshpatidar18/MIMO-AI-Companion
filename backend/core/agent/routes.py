@@ -24,6 +24,9 @@ class TaskBody(BaseModel):
 
 class ConfirmBody(BaseModel):
     approve: bool
+    # Which step the user was looking at. Supplying it means a late tap on an old prompt cannot
+    # approve the step that happens to be waiting now.
+    step_index: Optional[int] = Field(default=None, ge=0)
 
 
 class PolicyBody(BaseModel):
@@ -76,8 +79,12 @@ def confirm_task(task_id: str, body: ConfirmBody, m: TaskManager = Depends(manag
                  _: Optional[dict] = Depends(require_scope("agent:control", allow_unpaired=True))) -> dict:
     if m.get(task_id) is None:
         raise HTTPException(status_code=404, detail="Unknown task.")
-    if not m.confirm(task_id, body.approve):
-        raise HTTPException(status_code=409, detail="This task is not waiting for confirmation.")
+    if not m.confirm(task_id, body.approve, step_index=body.step_index):
+        raise HTTPException(
+            status_code=409,
+            detail="This task is not waiting for that confirmation — it may have timed out, "
+                   "moved on, or the step you answered is no longer the current one.",
+        )
     return {"approved": body.approve}
 
 

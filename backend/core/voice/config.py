@@ -33,6 +33,9 @@ class VoiceSettings(BaseModel):
     stt_compute_type: str = "int8"
     stt_device: str = "auto"
     stt_beam_size: int = Field(default=1, ge=1, le=5)
+    # CTranslate2 defaults to one thread per core, which oversubscribes hybrid P/E laptops and
+    # fights whatever else is running. Four is plenty for a short utterance.
+    stt_cpu_threads: int = Field(default=4, ge=1, le=32)
     language: Optional[str] = "en"
     tts_provider: Literal["local", "off"] = "local"
     tts_voice: str = "af_heart"

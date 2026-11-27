@@ -65,8 +65,10 @@ def server(tmp_path_factory):
 @pytest.fixture
 def api(server):
     """A paired client: the code is issued from loopback, which the backend treats as the PC."""
-    request = urllib.request.Request(server + "/auth/pair/code", data=b"{}", method="POST",
-                                    headers={"Content-Type": "application/json"})
+    request = urllib.request.Request(
+        server + "/auth/pair/code", data=b'{"kind": "desktop"}', method="POST",
+        headers={"Content-Type": "application/json"},
+    )
     with urllib.request.urlopen(request, timeout=10) as response:
         code = json.loads(response.read())["code"]
     client = MimoApi(server)

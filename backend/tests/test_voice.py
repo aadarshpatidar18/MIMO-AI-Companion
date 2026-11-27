@@ -210,14 +210,29 @@ def test_oversize_recording_is_refused_before_any_model_runs(voice_app):
     assert response.status_code == 413
 
 
-def test_transcribing_without_a_model_is_503_with_advice(voice_app):
+def test_transcribing_without_a_model_is_503_with_advice(voice_app, monkeypatch):
+    """A machine with no engine says "install this", not "bad audio" — and never 500."""
+    import io as _io
+    import wave as _wave
+
+    from backend.core.voice import routes as voice_routes
+    from backend.core.voice.stt_local import WhisperSTT
+
+    monkeypatch.setattr(WhisperSTT, "package_installed", staticmethod(lambda: False))
+    voice_routes.reset_manager()
+
+    buffer = _io.BytesIO()
+    with _wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"\x00\x00" * 1600)
+
     client, _ = voice_app
-    response = client.post("/voice/transcribe", content=b"RIFF....",
+    response = client.post("/voice/transcribe", content=buffer.getvalue(),
                            headers={"content-type": "audio/wav"})
-    if response.status_code == 200:
-        pytest.skip("a Whisper model is installed on this machine")
     assert response.status_code == 503
-    assert response.json()["detail"]
+    assert "faster-whisper" in response.json()["detail"]
 
 
 def test_speak_without_a_model_is_503_with_advice(voice_app):
@@ -272,3 +287,39 @@ def test_the_voice_package_imports_without_numpy_or_model_libraries():
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-1500:]
     assert "ok" in result.stdout
+
+
+def test_unreadable_audio_is_a_400_not_a_missing_model(voice_app):
+    """Bad input must not look like a broken install: one is the caller's fault, one is not."""
+    client, _ = voice_app
+    response = client.post("/voice/transcribe", content=b"not a wav at all",
+                           headers={"content-type": "audio/wav"})
+    assert response.status_code == 400
+    assert "WAV" in response.json()["detail"]
+
+
+def test_an_empty_recording_inside_a_valid_wav_is_a_400(voice_app):
+    import io as _io
+    import wave as _wave
+
+    buffer = _io.BytesIO()
+    with _wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"")
+    response = voice_app[0].post("/voice/transcribe", content=buffer.getvalue(),
+                                 headers={"content-type": "audio/wav"})
+    assert response.status_code == 400
+
+
+def test_models_can_be_unloaded_to_free_memory(voice_app):
+    """On a 16 GB laptop the owner must be able to give ~1.25 GB back without a restart."""
+    client, voice_routes = voice_app
+    manager = voice_routes.get_manager()
+    manager.stt()                     # touch it so there is something to unload
+    assert manager._stt is not None
+    body = client.post("/voice/unload").json()
+    assert body["unloaded"]["stt"] is True
+    assert manager._stt is None
+    assert client.get("/voice/status").status_code == 200

@@ -24,6 +24,10 @@ class _Live:
     awaiting: bool = False
     deadline: float = 0.0
     cancel_reason: str = ""
+    # Which step is waiting for a decision. A reply that names a different one is refused, so a
+    # late tap cannot approve the *next* consequential step by accident.
+    pending_index: Optional[int] = None
+    pending_since: float = 0.0
 
 
 class _TaskContext(RunContext):
@@ -55,6 +59,8 @@ class _TaskContext(RunContext):
     def confirm(self, step: StepRecord) -> bool:
         live, started = self.live, time.monotonic()
         live.answered.clear()
+        live.pending_index = step.index
+        live.pending_since = started
         live.awaiting = True
         self.mgr.store.update_task(self.task_id, status="awaiting_confirmation",
                                    pending={"index": step.index, "tool": step.tool, "args": step.args,
@@ -144,15 +150,27 @@ class TaskManager:
         live.cancel.set()
         return True
 
-    def confirm(self, task_id: str, approve: bool) -> bool:
-        """True if a pending confirmation was answered; False if nothing was waiting."""
+    def confirm(self, task_id: str, approve: bool,
+                step_index: Optional[int] = None) -> bool:
+        """Answer a pending confirmation.
+
+        Returns False when nothing is waiting **or** when [step_index] names a different step than
+        the one actually paused — a decision made about step 3 must not approve step 4, which is
+        what happens when a user taps a stale button. A reply that arrives after the engine's own
+        deadline is refused for the same reason.
+        """
         with self._lock:
             live = self._live.get(task_id)
-        if live is None or not live.awaiting:
-            return False
-        live.approved = approve
-        live.answered.set()
-        return True
+            if live is None or not live.awaiting:
+                return False
+            if step_index is not None and live.pending_index is not None \
+                    and step_index != live.pending_index:
+                return False
+            if live.pending_since and time.monotonic() - live.pending_since > self.confirm_timeout:
+                return False
+            live.approved = approve
+            live.answered.set()
+            return True
 
     def shutdown(self) -> None:
         with self._lock:

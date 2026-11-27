@@ -128,7 +128,7 @@ def test_revoked_device_cannot_authenticate(tmp_path):
 def test_rotation_invalidates_the_old_token_only_for_that_device(tmp_path):
     service = make_service(tmp_path)
     a = service.enroll(service.issue_code(), "phone", "android")
-    b = service.enroll(service.issue_code(), "pc", "windows")
+    b = service.enroll(service.issue_code("windows"), "pc", "windows")
     new = service.rotate(service.store.get_device(a["device"]["id"]), a["token"])["token"]
     assert service.authenticate(a["token"]) is None
     assert service.authenticate(new) is not None
@@ -247,3 +247,64 @@ def test_revocation_takes_effect_on_the_next_request(app_env):
     assert client.get("/memory", headers=auth(phone_token)).status_code == 200
     client.delete(f"/devices/{phone_id}", headers=auth(pc_token))
     assert client.get("/memory", headers=auth(phone_token)).status_code == 401
+
+
+def test_a_code_issued_for_a_phone_cannot_be_redeemed_as_a_desktop(tmp_path):
+    """The redeeming client does not choose its privileges — the issuing side does.
+
+    Without this, anyone holding a phone code could pair as `desktop`, which carries
+    `device:manage` (issue codes, revoke other devices).
+    """
+    service = make_service(tmp_path)
+    code = service.issue_code("android")
+    with pytest.raises(ValueError, match="issued for a android device"):
+        service.enroll(code, "not-a-phone", "desktop")
+    # The failed attempt does not consume the code: the right device can still use it.
+    assert service.codes.kind_for(code) == "android"
+    enrolled = service.enroll(code, "phone", "android")
+    assert enrolled["device"]["kind"] == "android"
+    assert "device:manage" not in enrolled["device"]["scopes"]
+
+
+def test_the_kind_of_a_code_can_be_read_without_burning_it(tmp_path):
+    service = make_service(tmp_path)
+    code = service.issue_code("desktop")
+    assert service.codes.kind_for(code) == "desktop"
+    assert service.enroll(code, "pc", "desktop")["device"]["kind"] == "desktop"
+
+
+def test_an_unknown_kind_is_refused_when_issuing(tmp_path):
+    service = make_service(tmp_path)
+    with pytest.raises(ValueError, match="kind must be one of"):
+        service.issue_code("toaster")
+
+
+def test_the_lan_cannot_be_served_without_authentication(monkeypatch):
+    """A LAN-reachable, unauthenticated MIMO lets anyone on the Wi-Fi drive the agent."""
+    from backend.api import _guard_lan_exposure
+
+    monkeypatch.setenv("MIMO_HOST", "0.0.0.0")
+    monkeypatch.delenv("MIMO_REQUIRE_AUTH", raising=False)
+    monkeypatch.delenv("MIMO_ALLOW_OPEN_LAN", raising=False)
+    with pytest.raises(RuntimeError, match="MIMO_REQUIRE_AUTH"):
+        _guard_lan_exposure()
+
+    monkeypatch.setenv("MIMO_REQUIRE_AUTH", "1")
+    _guard_lan_exposure()                      # authenticated LAN is the intended configuration
+
+    monkeypatch.delenv("MIMO_REQUIRE_AUTH")
+    monkeypatch.setenv("MIMO_HOST", "127.0.0.1")
+    _guard_lan_exposure()                      # this PC only, no network exposure
+
+    monkeypatch.setenv("MIMO_HOST", "192.168.1.20")
+    monkeypatch.setenv("MIMO_ALLOW_OPEN_LAN", "1")
+    _guard_lan_exposure()                      # explicit, logged opt-in
+
+
+def test_a_browser_token_cannot_manage_devices(tmp_path):
+    """The browser holds a token in localStorage; it must not be able to issue codes or revoke."""
+    from backend.core.security.tokens import scopes_for_kind
+
+    browser = scopes_for_kind("browser")
+    assert "device:manage" not in browser
+    assert {"chat:write", "memory:write", "agent:run"} <= set(browser)

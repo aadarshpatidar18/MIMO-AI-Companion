@@ -14,7 +14,11 @@ AudioInput = Union[bytes, str]
 
 
 class VoiceUnavailable(RuntimeError):
-    """Raised when the requested voice capability cannot run here. The message is for the user."""
+    """The capability cannot run here (no model, cloud not allowed) — a 503, not the caller's fault."""
+
+
+class AudioFormatError(ValueError):
+    """The caller sent something that is not usable audio — a 400, and the caller can fix it."""
 
 
 @dataclass(frozen=True)

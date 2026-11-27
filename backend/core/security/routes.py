@@ -56,16 +56,30 @@ def auth_status() -> dict:
     }
 
 
+class IssueCodeBody(BaseModel):
+    """Which kind of device this code is for. Default: the most restricted one."""
+
+    kind: str = "android"
+
+
 @router.post("/auth/pair/code")
-def issue_pairing_code(request: Request) -> dict:
-    """Show a code on the PC that the phone can type in. Local console only."""
+def issue_pairing_code(request: Request, body: IssueCodeBody | None = None) -> dict:
+    """Show a code on the PC that the device can type in. Local console only.
+
+    The kind is fixed here, not chosen by the device redeeming the code: a code issued for a phone
+    cannot be redeemed as a desktop, which would hand out `device:manage`.
+    """
     _local_admin(request)
     service = get_service()
-    code = service.issue_code()
+    requested_kind = (body.kind if body else "android") or "android"
+    try:
+        code = service.issue_code(requested_kind)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
     service.store.log_event("pair_code_issued", None,
-                            f"from {getattr(request.client, 'host', '?')}"[:60])
-    return {"code": code, "expires_in_s": int(service.codes.ttl_s),
-            "note": "Type this into the new device. Single use."}
+                            f"{requested_kind} from {getattr(request.client, 'host', '?')}"[:60])
+    return {"code": code, "kind": requested_kind, "expires_in_s": int(service.codes.ttl_s),
+            "note": f"Type this into the {requested_kind} device. Single use."}
 
 
 @router.post("/auth/pair")

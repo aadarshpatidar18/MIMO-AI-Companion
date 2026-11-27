@@ -30,19 +30,33 @@ class SecurityService:
         self.pair_limiter = pair_limiter or SlidingWindowLimiter(limit=10, window_s=60.0)
 
     # ------------------------------------------------------------------ enrollment
-    def issue_code(self) -> str:
-        return self.codes.issue()
+    def issue_code(self, kind: str = "android") -> str:
+        kind = (kind or "android").strip().lower()
+        if kind not in DEVICE_KINDS:
+            raise ValueError(f"kind must be one of: {', '.join(sorted(DEVICE_KINDS))}")
+        return self.codes.issue(kind)
 
     def enroll(self, code: str, name: str, kind: str, client_key: str = "?") -> dict:
-        """Redeem a pairing code and create a device. Raises ValueError on refusal."""
+        """Redeem a pairing code and create a device. Raises ValueError on refusal.
+
+        The code decides the device kind, not the client: a code issued for a phone can only
+        produce a phone, so the narrower scopes cannot be traded up by asking.
+        """
         if not self.pair_limiter.allow(client_key):
             self.store.log_event("pair_rate_limited", None, client_key[:40])
             raise ValueError("too many attempts; wait a minute")
         kind = (kind or "").strip().lower()
         if kind not in DEVICE_KINDS:
             raise ValueError(f"kind must be one of: {', '.join(sorted(DEVICE_KINDS))}")
+        issued_for = self.codes.kind_for(code)
+        if issued_for is not None and issued_for != kind:
+            self.store.log_event("pair_kind_mismatch", None, f"asked {kind}, code for {issued_for}")
+            raise ValueError(
+                f"that code was issued for a {issued_for} device; run "
+                f"`python -m backend.main pair {kind}` on the PC to get a matching one"
+            )
         name = (name or "").strip()[:NAME_MAX] or f"{kind}-device"
-        if not self.codes.redeem(code):
+        if not self.codes.redeem(code, kind):
             self.store.log_event("pair_failed", None, "invalid or expired code")
             raise ValueError("that pairing code is invalid or has expired")
         device_id = uuid.uuid4().hex[:12]

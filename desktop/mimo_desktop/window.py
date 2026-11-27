@@ -22,6 +22,8 @@ from .theme import QSS
 from .worker import run_async
 
 RUNNING = ("queued", "running", "planning")
+ACTIVE_POLL_MS = 3_000
+IDLE_POLL_MS = 20_000
 
 
 class MainWindow(QMainWindow):
@@ -44,7 +46,7 @@ class MainWindow(QMainWindow):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh_tasks_silently)
-        self.timer.start(4_000)
+        self.timer.start(ACTIVE_POLL_MS)
         self.check_connection()
         self.load_conversations()
         self.load_memory()
@@ -300,7 +302,13 @@ class MainWindow(QMainWindow):
         run_async(self.api.tasks, self.render_tasks, self.show_error)
 
     def refresh_tasks_silently(self) -> None:
-        if not self.api.token:
+        # Poll at 3 s only while somebody is looking; 20 s otherwise. A window left open in the
+        # background was otherwise asking the backend 900 times an hour for a table nobody saw.
+        looking = self.isVisible() and not self.isMinimized() and self.isActiveWindow()
+        interval = ACTIVE_POLL_MS if looking else IDLE_POLL_MS
+        if self.timer.interval() != interval:
+            self.timer.setInterval(interval)
+        if not self.api.token or not looking:
             return
 
         def done(tasks: list[dict]) -> None:
@@ -327,11 +335,15 @@ class MainWindow(QMainWindow):
                 box = QHBoxLayout(actions)
                 box.setContentsMargins(0, 0, 0, 0)
                 if task.get("pending"):
+                    pending = task.get("pending") or {}
+                    step = pending.get("index") if isinstance(pending, dict) else None
                     approve = QPushButton("Approve")
-                    approve.clicked.connect(lambda _, t=task["id"]: self.confirm_task(t, True))
+                    approve.clicked.connect(
+                        lambda _, t=task["id"], s=step: self.confirm_task(t, True, s))
                     box.addWidget(approve)
                     deny = QPushButton("Deny")
-                    deny.clicked.connect(lambda _, t=task["id"]: self.confirm_task(t, False))
+                    deny.clicked.connect(
+                        lambda _, t=task["id"], s=step: self.confirm_task(t, False, s))
                     box.addWidget(deny)
                 if status in RUNNING:
                     stop = QPushButton("Stop")
@@ -350,8 +362,8 @@ class MainWindow(QMainWindow):
         run_async(lambda: self.api.cancel_task(task_id), lambda _: self.load_tasks(),
                   self.show_error)
 
-    def confirm_task(self, task_id: str, approve: bool) -> None:
-        run_async(lambda: self.api.confirm_task(task_id, approve),
+    def confirm_task(self, task_id: str, approve: bool, step_index=None) -> None:
+        run_async(lambda: self.api.confirm_task(task_id, approve, step_index),
                   lambda _: self.load_tasks(), self.show_error)
 
     def emergency_stop(self) -> None:

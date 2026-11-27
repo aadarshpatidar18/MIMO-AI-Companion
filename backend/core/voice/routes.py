@@ -5,10 +5,11 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from ..security.gate import require_scope
-from .base import VoiceUnavailable
+from .base import AudioFormatError, VoiceUnavailable
 from .config import VoiceSettings, load_settings, save_settings
 from .manager import VoiceManager
 
@@ -46,6 +47,7 @@ class SettingsPatch(BaseModel):
     stt_compute_type: Optional[str] = None
     stt_device: Optional[str] = None
     stt_beam_size: Optional[int] = None
+    stt_cpu_threads: Optional[int] = None
     language: Optional[str] = None
     tts_provider: Optional[str] = None
     tts_voice: Optional[str] = None
@@ -109,7 +111,11 @@ async def transcribe(
         raise HTTPException(status_code=413,
                             detail=f"That recording is too long (max {MAX_AUDIO_BYTES // (1024 * 1024)} MB).")
     try:
-        transcript = manager.transcribe(audio, language=language, vad=vad)
+        # Inference is CPU-bound for seconds; it must not run on the event loop, where it would
+        # stall every other request (including the health check the phone polls).
+        transcript = await run_in_threadpool(manager.transcribe, audio, language, vad)
+    except AudioFormatError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
     except VoiceUnavailable as error:
         raise HTTPException(status_code=503, detail=str(error)) from None
     except Exception:
@@ -143,6 +149,13 @@ def speak(body: SpeakBody, manager: VoiceManager = Depends(get_manager),
         media_type="audio/wav",
         headers={"Cache-Control": "no-store", "X-MIMO-Sample-Rate": str(chunk.sample_rate)},
     )
+
+
+@router.post("/unload")
+def unload(manager: VoiceManager = Depends(get_manager),
+           _: Optional[dict] = Depends(require_scope("chat:write", allow_unpaired=True))) -> dict:
+    """Free the ~1.25 GB the models hold. They reload on the next request."""
+    return manager.unload()
 
 
 @router.post("/cancel")

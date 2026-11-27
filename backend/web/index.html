@@ -511,7 +511,7 @@
     try {
       const res = await fetch(BASE + "/auth/pair", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, name, kind: isAndroid ? "android" : "desktop" }),
+        body: JSON.stringify({ code, name, kind: isAndroid ? "android" : "browser" }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.detail || "Pairing failed");
@@ -529,7 +529,10 @@
 
   async function showCodeHere() {
     try {
-      const res = await fetch(BASE + "/auth/pair/code", { method: "POST" });
+      const res = await fetch(BASE + "/auth/pair/code", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: isAndroid ? "android" : "browser" }),
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.detail || "Only the PC that runs MIMO can show a code.");
       $("pairErr").textContent = "";

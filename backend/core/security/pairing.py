@@ -21,6 +21,7 @@ _CODE_LEN = 8
 class _Code:
     code: str
     created: float
+    kind: str = "android"
 
 
 class PairingCodes:
@@ -34,13 +35,22 @@ class PairingCodes:
         self._failures = 0
         self._lock = threading.Lock()
 
-    def issue(self) -> str:
-        """Create a new code. Only one code is live at a time - issuing invalidates the old one."""
+    def issue(self, kind: str = "android") -> str:
+        """Create a new code bound to one device kind. Only one code is live at a time."""
         code = "".join(secrets.choice(_ALPHABET) for _ in range(_CODE_LEN))
         with self._lock:
-            self._codes = {code: _Code(code, self._clock())}
+            self._codes = {code: _Code(code, self._clock(), kind)}
             self._failures = 0
         return code
+
+    def kind_for(self, code: str) -> Optional[str]:
+        """The kind this code was issued for, without consuming it."""
+        code = (code or "").strip().upper().replace("-", "").replace(" ", "")
+        with self._lock:
+            entry = self._codes.get(code)
+            if entry is None or self._clock() - entry.created > self.ttl_s:
+                return None
+            return entry.kind
 
     def _failed(self) -> None:
         self._failures += 1
@@ -48,8 +58,13 @@ class PairingCodes:
             self._codes.clear()
             self._failures = 0
 
-    def redeem(self, code: str) -> bool:
-        """Consume a code. True only for a live, unexpired, not-yet-burned code."""
+    def redeem(self, code: str, kind: Optional[str] = None) -> bool:
+        """Consume a code. True only for a live, unexpired, not-yet-burned code of this kind.
+
+        A code is issued for one kind of device. A phone cannot redeem a code issued for a desktop
+        (which carries `device:manage`) simply by asking for that kind, and a wrong kind counts as
+        a failed attempt so kinds cannot be probed.
+        """
         code = (code or "").strip().upper().replace("-", "").replace(" ", "")
         with self._lock:
             entry = self._codes.get(code)
@@ -58,6 +73,9 @@ class PairingCodes:
                 return False
             if self._clock() - entry.created > self.ttl_s:
                 self._codes.pop(code, None)
+                return False
+            if kind is not None and kind != entry.kind:
+                self._failed()
                 return False
             self._codes.pop(code, None)                 # single use
             self._failures = 0

@@ -28,6 +28,10 @@ SCOPES = frozenset({
 DEVICE_KINDS: dict[str, frozenset[str]] = {
     "android": frozenset({"chat:read", "chat:write", "memory:read", "memory:write",
                           "agent:run", "agent:control", "device:read"}),
+    # The browser interface is a device too. It gets no `device:manage`: a token sitting in a
+    # browser's localStorage must not be able to issue codes or revoke other devices.
+    "browser": frozenset({"chat:read", "chat:write", "memory:read", "memory:write",
+                          "agent:run", "agent:control", "device:read"}),
     "windows": frozenset({"chat:read", "chat:write", "memory:read", "memory:write",
                           "agent:run", "agent:control", "device:read", "device:manage"}),
     "desktop": frozenset({"chat:read", "chat:write", "memory:read", "memory:write",
