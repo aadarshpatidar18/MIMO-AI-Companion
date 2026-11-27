@@ -22,6 +22,7 @@ from .core.security import (AuthGate, current_device, get_service,
 from .core.security.dispatch import ActionDenied, ActionPolicy
 from .core.security.pairing import SlidingWindowLimiter
 from .core.security.routes import router as security_router
+from .core.voice.routes import router as voice_router
 from .intent_rules import detect_memory_category
 from .llm import ask_mimo, classify_intent
 from .legacy_tools import execute_tool
@@ -62,6 +63,7 @@ app.include_router(agent_router)
 app.include_router(security_router)
 app.include_router(conversations_router)
 app.include_router(persona_router)
+app.include_router(voice_router)
 
 # Browsers only ever talk to this backend from the local machine; native Android and
 # desktop clients are unaffected by CORS. Override with MIMO_CORS_ORIGINS if you serve a web UI.
@@ -324,7 +326,13 @@ def chat(request: ChatRequest, http_request: Request):
             "conversation_id": request.conversation_id,
             "device_id": device["id"],
             "intent": intent,
-            "response": response
+            "response": response,
+            # The ids the store just assigned to both rows. Clients need them to reconcile their
+            # own optimistic copy of this turn without pulling the whole conversation and guessing
+            # which message is which.
+            "user_message_id": stored[0],
+            "assistant_message_id": stored[1],
+            "created_at": (conversations.get(request.conversation_id) or {}).get("updated_at")
         }
 
     try:

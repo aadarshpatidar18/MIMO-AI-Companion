@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What MIMO's accessibility service may do, as narrowly as Android allows:
+    * read the active window's content (that is the operator's "eyes")
+    * perform gestures (the fallback when a node refuses a click)
+    * flag itself as an accessibility tool: it acts for the person who enabled it, and does not
+      pretend to be one of Android's own accessibility features for disabled users.
+  It is not configured to receive every event type in the system, only window changes, so it is
+  asleep unless the screen actually changes.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_description"
+    android:isAccessibilityTool="true"
+    android:notificationTimeout="200"
+    android:settingsActivity="com.mimo.companion.MainActivity" />

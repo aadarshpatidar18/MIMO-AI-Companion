@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">MIMO</string>
+    <string name="accessibility_description">Lets MIMO read the screen you are looking at and tap, type or scroll only when you ask it to. Nothing is recorded in the background; the service is off until you enable it and can be switched off at any time.</string>
+    <string name="screenshot_description">Shown while MIMO can take a screenshot of your screen.</string>
 </resources>

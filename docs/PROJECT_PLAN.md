@@ -119,6 +119,63 @@ Android. Everything else in the list now exists and is tested.
 - The dashboard shows importance, recall count and a Correct button per fact.
 - `docs/MEMORY.md`. 307 tests.
 
+## 6f. Android operator — built (2026-11-27)
+
+- The chat-only client is replaced by a full application: Room persistence, pairing and device
+  identity, offline queue with ordered retry, connection monitoring with backoff, notifications for
+  finished tasks and approvals, an accessibility-based operator with verified actions, on-device
+  OCR, and the five screens (chat, memory, activity, operator, settings).
+- Backend: `POST /chat` now also returns the ids it stored for both rows of a turn, so a phone can
+  reconcile its own optimistic message instead of guessing. Additive; nothing removed or renamed.
+- Verified here: debug and release APKs build, 12 JVM unit tests pass, backend suite 303 passed /
+  1 skipped. **Not verified: any runtime behaviour on a phone.** The checklist for the Galaxy A27
+  is in `docs/ANDROID_OPERATOR.md`.
+- Still missing from the original list: local voice (Module B), the PySide6 desktop shell
+  (Module C), measured load/performance testing (Module D), and the Windows installer (Module E).
+
+## 6g. Local voice engine — built and measured (2026-11-27)
+
+- `backend/core/voice/`: `faster-whisper` STT and Kokoro TTS behind one manager, `/voice/*` routes,
+  lazy loading so a machine without the models still starts, cloud refused unless chosen *and*
+  allowed, real sentence-level barge-in.
+- Measured here (4 CPU, no GPU): STT RTF 0.45–0.48 warm (2.67 s clip in ~1.2 s), TTS first chunk
+  400 ms warm / 1660 ms cold, +1.25 GB resident for both models. Round trip reproduced the
+  sentence exactly. Numbers and caveats in `docs/VOICE.md`.
+- 35 new tests (`backend/tests/test_voice.py`); suite is 336 passed / 1 skipped.
+
+## 6h. Load and resilience — measured (2026-11-27)
+
+- `scripts/load_test.py` runs the real server in its own process and reports latency percentiles,
+  throughput, RSS/CPU and database size for sequential and 9-device concurrent chat, a 200-message
+  conversation, memory search over 300 facts, a duplicate-request storm, auth failures, parallel
+  agent goals and cancellation.
+- Measured here: sequential p50 5.4 ms / p95 7.6 ms (178 turns/s); 9 devices p50 37.6 ms
+  (225 turns/s); memory search p50 6 ms; server RSS 71 MB. Written up with bottlenecks and what is
+  *not* measured in `docs/PERFORMANCE.md`.
+- `backend/tests/test_resilience.py`: total provider outage → 503 with nothing stored, then
+  recovery; one device's rate limit cannot lock another out; history survives a store restart.
+
+## 6i. Windows packaging (2026-11-27)
+
+- `scripts/windows/`: `install.ps1` (per-user venv, deps, `.env`, Start Menu + Desktop shortcuts,
+  optional logon Scheduled Task, optional voice), `start-mimo.ps1` (waits for `/health`, prints the
+  LAN address, writes a pid file), `stop-mimo.ps1`, `uninstall.ps1` (with `-KeepData`).
+- `docs/INSTALL_WINDOWS.md`: prerequisites, switches, pairing, voice model download, APK build and
+  signing with env-var keys, uninstall, and a symptom→cause→fix table.
+- **Written, not executed**: no Windows machine here. The scripts are reviewed but the first run
+  is the test; this is stated in the doc and in the release notes.
+
+## 6j. Desktop shell — built (2026-11-27)
+
+- `desktop/mimo_desktop/`: PySide6 window over the same API — chat, activity with approve/deny/stop,
+  memory (search, teach, correct, forget), devices with revoke, settings with pairing, and an
+  Emergency Stop that cancels every running task on the backend.
+- No duplicated logic: every screen is a route call. All HTTP runs off the GUI thread.
+- Verified headless against a real backend: `pytest desktop/tests/test_desktop.py` → 7 passed
+  (pairing, chat round trip, memory, emergency stop, auth failure, offline, window construction).
+- Not verified: a real display, DPI, sound card, or the Windows shortcut. No desktop microphone
+  yet (speech in stays in the browser and on the phone).
+
 ## 7. Decisions I need from Aadarsh
 
 1. **Repo remote** — the workspace has no git remote. I can keep shipping archives, or push to a
